@@ -1,12 +1,14 @@
-export type Role = "student" | "mentor" | "admin";
+export type Role = "student" | "mentor";
 
 export type AuthUser = {
   id: string;
   name: string;
   email: string;
   role: Role;
-  status: "pending" | "approved";
-  domain?: string;
+  isAdmin?: boolean;
+  approvalStatus?: "pending" | "approved" | "rejected";
+  primaryCategory?: string;
+  subCategory?: string;
 };
 
 export type LoginResponse = {
@@ -18,8 +20,10 @@ export type Mentor = {
   _id: string;
   name: string;
   email: string;
-  status: "pending" | "approved";
-  domain?: string;
+  approvalStatus: "pending" | "approved" | "rejected";
+  primaryCategory?: string;
+  subCategory?: string;
+  specializations?: string[];
   createdAt: string;
 };
 
@@ -27,7 +31,9 @@ export type Student = {
   _id: string;
   name: string;
   email: string;
-  status: "pending" | "approved";
+  educationLevel?: string;
+  targetExam?: string;
+  interestedCategories?: string[];
   createdAt: string;
 };
 
@@ -41,14 +47,24 @@ export type Demographics = {
   roles: {
     students: number;
     mentors: number;
-    admins: number;
   };
   bookings: {
     pending: number;
     approved: number;
     rejected: number;
   };
-  mentorDomains: Array<{ domain: string; count: number }>;
+  mentorCategories: Array<{ category: string; count: number }>;
+  studentInterests: Array<{ category: string; count: number }>;
+};
+
+export type CollaborateApplication = {
+  _id: string;
+  name: string;
+  email: string;
+  organization?: string;
+  type: "leader" | "founder" | "mentor";
+  message?: string;
+  createdAt: string;
 };
 
 export type NotificationRecord = {

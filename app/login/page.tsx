@@ -27,7 +27,7 @@ export default function LoginPage() {
         })
       });
 
-      if (data.user.role !== "admin") {
+      if (!data.user.isAdmin) {
         throw new Error("Access denied. Admin account required.");
       }
 

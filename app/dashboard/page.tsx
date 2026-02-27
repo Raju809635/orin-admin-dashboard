@@ -4,13 +4,13 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 import { clearSession, getToken, getUser } from "../../lib/auth";
-import { Demographics, Mentor, NotificationRecord, Student } from "../../lib/types";
+import { CollaborateApplication, Demographics, Mentor, NotificationRecord, Student } from "../../lib/types";
 
 type NotificationForm = {
   title: string;
   message: string;
   type: "announcement" | "system" | "booking" | "approval";
-  targetRole: "student" | "mentor" | "admin" | "all";
+  targetRole: "student" | "mentor" | "all";
 };
 
 const defaultNotification: NotificationForm = {
@@ -32,6 +32,8 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [demographics, setDemographics] = useState<Demographics | null>(null);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+  const [approvedMentors, setApprovedMentors] = useState<Mentor[]>([]);
+  const [collaborateApplications, setCollaborateApplications] = useState<CollaborateApplication[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
   const [sendingNotification, setSendingNotification] = useState(false);
 
@@ -39,7 +41,7 @@ export default function DashboardPage() {
     const currentToken = getToken();
     const currentUser = getUser();
 
-    if (!currentToken || !currentUser || currentUser.role !== "admin") {
+    if (!currentToken || !currentUser || !currentUser.isAdmin) {
       router.replace("/login");
       return;
     }
@@ -58,11 +60,14 @@ export default function DashboardPage() {
         setError("");
         setEndpointWarnings([]);
 
-        const [mentorRes, studentRes, demographicRes, notificationRes] = await Promise.allSettled([
+        const [mentorRes, studentRes, demographicRes, notificationRes, approvedMentorRes, collaborateRes] =
+          await Promise.allSettled([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
           apiRequest<Student[]>("/api/admin/students", {}, token),
           apiRequest<Demographics>("/api/admin/demographics", {}, token),
-          apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token)
+          apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token),
+          apiRequest<Mentor[]>("/api/admin/approved-mentors", {}, token),
+          apiRequest<CollaborateApplication[]>("/api/admin/collaborate-applications", {}, token)
         ]);
 
         const warnings: string[] = [];
@@ -90,6 +95,18 @@ export default function DashboardPage() {
           setNotifications(notificationRes.value);
         } else {
           warnings.push(`Notifications: ${notificationRes.reason?.message || "failed to load"}`);
+        }
+
+        if (approvedMentorRes.status === "fulfilled") {
+          setApprovedMentors(approvedMentorRes.value);
+        } else {
+          warnings.push(`Approved Mentors: ${approvedMentorRes.reason?.message || "failed to load"}`);
+        }
+
+        if (collaborateRes.status === "fulfilled") {
+          setCollaborateApplications(collaborateRes.value);
+        } else {
+          warnings.push(`Collaborations: ${collaborateRes.reason?.message || "failed to load"}`);
         }
 
         if (warnings.length > 0) {
@@ -244,7 +261,7 @@ export default function DashboardPage() {
                 <div>
                   <strong>{mentor.name}</strong>
                   <p className="muted" style={{ margin: "4px 0 0 0" }}>
-                    {mentor.email} | {mentor.domain || "No domain"}
+                    {mentor.email} | {mentor.primaryCategory || "Category not set"}
                   </p>
                 </div>
                 <button className="button primary" onClick={() => approveMentor(mentor._id)}>
@@ -267,7 +284,7 @@ export default function DashboardPage() {
                 <tr>
                   <th align="left">Name</th>
                   <th align="left">Email</th>
-                  <th align="left">Status</th>
+                  <th align="left">Education / Target</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,11 +292,76 @@ export default function DashboardPage() {
                   <tr key={student._id}>
                     <td style={{ padding: "8px 0" }}>{student.name}</td>
                     <td>{student.email}</td>
-                    <td>{student.status}</td>
+                    <td>{student.targetExam || student.educationLevel || "-"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Approved Mentors</h2>
+        {approvedMentors.length === 0 ? (
+          <p className="muted">No approved mentors yet.</p>
+        ) : (
+          <div className="grid">
+            {approvedMentors.slice(0, 20).map((mentor) => (
+              <div key={mentor._id} style={{ borderTop: "1px solid #e4ece9", paddingTop: 10 }}>
+                <strong>{mentor.name}</strong>
+                <p className="muted" style={{ margin: "4px 0 0 0" }}>
+                  {mentor.email} | {mentor.primaryCategory || "No primary category"} / {mentor.subCategory || "No subcategory"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {demographics ? (
+        <section className="card grid">
+          <h2 style={{ margin: 0 }}>Mentor Categories</h2>
+          {demographics.mentorCategories.length === 0 ? (
+            <p className="muted">No mentor category data.</p>
+          ) : (
+            demographics.mentorCategories.map((item) => (
+              <p key={item.category} style={{ margin: 0 }}>
+                {item.category}: <strong>{item.count}</strong>
+              </p>
+            ))
+          )}
+
+          <h2 style={{ margin: "8px 0 0 0" }}>Student Interests</h2>
+          {demographics.studentInterests.length === 0 ? (
+            <p className="muted">No student interest data.</p>
+          ) : (
+            demographics.studentInterests.map((item) => (
+              <p key={item.category} style={{ margin: 0 }}>
+                {item.category}: <strong>{item.count}</strong>
+              </p>
+            ))
+          )}
+        </section>
+      ) : null}
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Collaborate Applications</h2>
+        {collaborateApplications.length === 0 ? (
+          <p className="muted">No collaboration applications yet.</p>
+        ) : (
+          <div className="grid">
+            {collaborateApplications.slice(0, 20).map((item) => (
+              <div key={item._id} style={{ borderTop: "1px solid #e4ece9", paddingTop: 10 }}>
+                <strong>
+                  {item.name} ({item.type})
+                </strong>
+                <p className="muted" style={{ margin: "4px 0 0 0" }}>
+                  {item.email} | {item.organization || "Individual"}
+                </p>
+                {item.message ? <p style={{ margin: "6px 0 0 0" }}>{item.message}</p> : null}
+              </div>
+            ))}
           </div>
         )}
       </section>
@@ -329,7 +411,6 @@ export default function DashboardPage() {
               <option value="all">all</option>
               <option value="student">student</option>
               <option value="mentor">mentor</option>
-              <option value="admin">admin</option>
             </select>
           </div>
           <button className="button primary" type="submit" disabled={sendingNotification}>

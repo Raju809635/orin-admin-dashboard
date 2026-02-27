@@ -11,7 +11,7 @@ export default function HomePage() {
     const token = getToken();
     const user = getUser();
 
-    if (!token || !user || user.role !== "admin") {
+    if (!token || !user || !user.isAdmin) {
       router.replace("/login");
       return;
     }
