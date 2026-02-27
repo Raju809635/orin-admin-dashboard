@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [endpointWarnings, setEndpointWarnings] = useState<string[]>([]);
   const [message, setMessage] = useState("");
 
   const [pendingMentors, setPendingMentors] = useState<Mentor[]>([]);
@@ -55,18 +56,45 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         setError("");
+        setEndpointWarnings([]);
 
-        const [mentorData, studentData, demographicData, notificationData] = await Promise.all([
+        const [mentorRes, studentRes, demographicRes, notificationRes] = await Promise.allSettled([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
           apiRequest<Student[]>("/api/admin/students", {}, token),
           apiRequest<Demographics>("/api/admin/demographics", {}, token),
           apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token)
         ]);
 
-        setPendingMentors(mentorData);
-        setStudents(studentData);
-        setDemographics(demographicData);
-        setNotifications(notificationData);
+        const warnings: string[] = [];
+
+        if (mentorRes.status === "fulfilled") {
+          setPendingMentors(mentorRes.value);
+        } else {
+          warnings.push(`Mentors: ${mentorRes.reason?.message || "failed to load"}`);
+        }
+
+        if (studentRes.status === "fulfilled") {
+          setStudents(studentRes.value);
+        } else {
+          warnings.push(`Students: ${studentRes.reason?.message || "failed to load"}`);
+        }
+
+        if (demographicRes.status === "fulfilled") {
+          setDemographics(demographicRes.value);
+        } else {
+          setDemographics(null);
+          warnings.push(`Demographics: ${demographicRes.reason?.message || "failed to load"}`);
+        }
+
+        if (notificationRes.status === "fulfilled") {
+          setNotifications(notificationRes.value);
+        } else {
+          warnings.push(`Notifications: ${notificationRes.reason?.message || "failed to load"}`);
+        }
+
+        if (warnings.length > 0) {
+          setEndpointWarnings(warnings);
+        }
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -153,6 +181,18 @@ export default function DashboardPage() {
       {error ? (
         <section className="card">
           <p style={{ margin: 0, color: "#b42318" }}>{error}</p>
+        </section>
+      ) : null}
+      {endpointWarnings.length > 0 ? (
+        <section className="card">
+          {endpointWarnings.map((warn) => (
+            <p key={warn} style={{ margin: "0 0 6px 0", color: "#b54708" }}>
+              {warn}
+            </p>
+          ))}
+          <p className="muted" style={{ margin: 0 }}>
+            If you see route not found, redeploy the latest backend on Render.
+          </p>
         </section>
       ) : null}
       {message ? (

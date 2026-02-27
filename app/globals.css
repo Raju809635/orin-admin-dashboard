@@ -1,11 +1,11 @@
 :root {
-  --bg: #f5f7f7;
+  --bg: #eef6f2;
   --surface: #ffffff;
-  --text: #182321;
+  --text: #0f1d1a;
   --muted: #556463;
-  --accent: #1f7a4c;
+  --accent: #0b3d2e;
   --danger: #b42318;
-  --border: #d8e0de;
+  --border: #cfe0d8;
 }
 
 * {
@@ -14,9 +14,12 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Tahoma, sans-serif;
+  font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
   color: var(--text);
-  background: radial-gradient(circle at top left, #eaf8f0 0, var(--bg) 45%);
+  background:
+    radial-gradient(circle at 10% 0%, #d7f0e3 0, transparent 35%),
+    radial-gradient(circle at 90% 10%, #dff4ea 0, transparent 30%),
+    var(--bg);
 }
 
 a {
@@ -33,22 +36,23 @@ a {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 12px 28px rgba(9, 52, 38, 0.08);
 }
 
 .input {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 12px;
+  padding: 12px 14px;
   font-size: 14px;
 }
 
 .button {
   border: 0;
-  border-radius: 10px;
-  padding: 10px 14px;
+  border-radius: 12px;
+  padding: 11px 15px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -80,8 +84,9 @@ a {
 .kpi {
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px;
+  box-shadow: 0 8px 20px rgba(9, 52, 38, 0.06);
 }
 
 .muted {
