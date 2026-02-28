@@ -56,7 +56,7 @@ export default function DashboardPage() {
     const currentToken = getToken();
     const currentUser = getUser();
 
-    if (!currentToken || !currentUser || currentUser.role !== "admin") {
+    if (!currentToken || !currentUser || !currentUser.isAdmin) {
       router.replace("/login");
       return;
     }
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                 <div>
                   <strong>{mentor.name}</strong>
                   <p className="muted" style={{ margin: "4px 0 0 0" }}>
-                    {mentor.email} | {mentor.domain || "No domain"}
+                    {mentor.email} | {[mentor.primaryCategory, mentor.subCategory].filter(Boolean).join(" > ") || "No category"}
                   </p>
                 </div>
                 <button className="button primary" onClick={() => approveMentor(mentor._id)}>

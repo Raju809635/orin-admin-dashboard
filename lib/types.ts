@@ -51,6 +51,8 @@ export type Student = {
   _id: string;
   name: string;
   email: string;
+  status?: "pending" | "approved";
+  approvalStatus?: "pending" | "approved" | "rejected";
   educationLevel?: string;
   targetExam?: string;
   interestedCategories?: string[];
