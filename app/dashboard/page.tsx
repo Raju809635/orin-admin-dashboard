@@ -4,13 +4,24 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 import { clearSession, getToken, getUser } from "../../lib/auth";
-import { CollaborateApplication, Demographics, Mentor, NotificationRecord, Student } from "../../lib/types";
+import {
+  Demographics,
+  Mentor,
+  MentorProfileRecord,
+  NotificationRecord,
+  Student
+} from "../../lib/types";
 
 type NotificationForm = {
   title: string;
   message: string;
   type: "announcement" | "system" | "booking" | "approval";
-  targetRole: "student" | "mentor" | "all";
+  targetRole: "student" | "mentor" | "admin" | "all";
+};
+
+type DirectMentorMessageForm = {
+  title: string;
+  message: string;
 };
 
 const defaultNotification: NotificationForm = {
@@ -25,23 +36,27 @@ export default function DashboardPage() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [endpointWarnings, setEndpointWarnings] = useState<string[]>([]);
   const [message, setMessage] = useState("");
 
   const [pendingMentors, setPendingMentors] = useState<Mentor[]>([]);
+  const [mentorProfiles, setMentorProfiles] = useState<MentorProfileRecord[]>([]);
+  const [selectedMentorIds, setSelectedMentorIds] = useState<string[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [demographics, setDemographics] = useState<Demographics | null>(null);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
-  const [approvedMentors, setApprovedMentors] = useState<Mentor[]>([]);
-  const [collaborateApplications, setCollaborateApplications] = useState<CollaborateApplication[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
+  const [directMessageForm, setDirectMessageForm] = useState<DirectMentorMessageForm>({
+    title: "",
+    message: ""
+  });
   const [sendingNotification, setSendingNotification] = useState(false);
+  const [sendingDirect, setSendingDirect] = useState(false);
 
   useEffect(() => {
     const currentToken = getToken();
     const currentUser = getUser();
 
-    if (!currentToken || !currentUser || !currentUser.isAdmin) {
+    if (!currentToken || !currentUser || currentUser.role !== "admin") {
       router.replace("/login");
       return;
     }
@@ -58,60 +73,20 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         setError("");
-        setEndpointWarnings([]);
 
-        const [mentorRes, studentRes, demographicRes, notificationRes, approvedMentorRes, collaborateRes] =
-          await Promise.allSettled([
+        const [mentorData, mentorProfileData, studentData, demographicData, notificationData] = await Promise.all([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
+          apiRequest<MentorProfileRecord[]>("/api/admin/mentors/profiles", {}, token),
           apiRequest<Student[]>("/api/admin/students", {}, token),
           apiRequest<Demographics>("/api/admin/demographics", {}, token),
-          apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token),
-          apiRequest<Mentor[]>("/api/admin/approved-mentors", {}, token),
-          apiRequest<CollaborateApplication[]>("/api/admin/collaborate-applications", {}, token)
+          apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token)
         ]);
 
-        const warnings: string[] = [];
-
-        if (mentorRes.status === "fulfilled") {
-          setPendingMentors(mentorRes.value);
-        } else {
-          warnings.push(`Mentors: ${mentorRes.reason?.message || "failed to load"}`);
-        }
-
-        if (studentRes.status === "fulfilled") {
-          setStudents(studentRes.value);
-        } else {
-          warnings.push(`Students: ${studentRes.reason?.message || "failed to load"}`);
-        }
-
-        if (demographicRes.status === "fulfilled") {
-          setDemographics(demographicRes.value);
-        } else {
-          setDemographics(null);
-          warnings.push(`Demographics: ${demographicRes.reason?.message || "failed to load"}`);
-        }
-
-        if (notificationRes.status === "fulfilled") {
-          setNotifications(notificationRes.value);
-        } else {
-          warnings.push(`Notifications: ${notificationRes.reason?.message || "failed to load"}`);
-        }
-
-        if (approvedMentorRes.status === "fulfilled") {
-          setApprovedMentors(approvedMentorRes.value);
-        } else {
-          warnings.push(`Approved Mentors: ${approvedMentorRes.reason?.message || "failed to load"}`);
-        }
-
-        if (collaborateRes.status === "fulfilled") {
-          setCollaborateApplications(collaborateRes.value);
-        } else {
-          warnings.push(`Collaborations: ${collaborateRes.reason?.message || "failed to load"}`);
-        }
-
-        if (warnings.length > 0) {
-          setEndpointWarnings(warnings);
-        }
+        setPendingMentors(mentorData);
+        setMentorProfiles(mentorProfileData);
+        setStudents(studentData);
+        setDemographics(demographicData);
+        setNotifications(notificationData);
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -168,6 +143,45 @@ export default function DashboardPage() {
     }
   }
 
+  function toggleMentorSelection(mentorId: string) {
+    setSelectedMentorIds((prev) =>
+      prev.includes(mentorId) ? prev.filter((id) => id !== mentorId) : [...prev, mentorId]
+    );
+  }
+
+  async function sendDirectMessageToSelectedMentors(event: FormEvent) {
+    event.preventDefault();
+    if (!token) return;
+    setSendingDirect(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await apiRequest(
+        "/api/admin/messages/mentors",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: directMessageForm.title,
+            message: directMessageForm.message,
+            recipientUserIds: selectedMentorIds
+          })
+        },
+        token
+      );
+
+      setDirectMessageForm({ title: "", message: "" });
+      setSelectedMentorIds([]);
+      setMessage("Direct message sent to selected mentors.");
+      const notificationData = await apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token);
+      setNotifications(notificationData);
+    } catch (err: any) {
+      setError(err.message || "Failed to send direct mentor message");
+    } finally {
+      setSendingDirect(false);
+    }
+  }
+
   function logout() {
     clearSession();
     router.replace("/login");
@@ -198,18 +212,6 @@ export default function DashboardPage() {
       {error ? (
         <section className="card">
           <p style={{ margin: 0, color: "#b42318" }}>{error}</p>
-        </section>
-      ) : null}
-      {endpointWarnings.length > 0 ? (
-        <section className="card">
-          {endpointWarnings.map((warn) => (
-            <p key={warn} style={{ margin: "0 0 6px 0", color: "#b54708" }}>
-              {warn}
-            </p>
-          ))}
-          <p className="muted" style={{ margin: 0 }}>
-            If you see route not found, redeploy the latest backend on Render.
-          </p>
         </section>
       ) : null}
       {message ? (
@@ -261,7 +263,7 @@ export default function DashboardPage() {
                 <div>
                   <strong>{mentor.name}</strong>
                   <p className="muted" style={{ margin: "4px 0 0 0" }}>
-                    {mentor.email} | {mentor.primaryCategory || "Category not set"}
+                    {mentor.email} | {mentor.domain || "No domain"}
                   </p>
                 </div>
                 <button className="button primary" onClick={() => approveMentor(mentor._id)}>
@@ -284,7 +286,7 @@ export default function DashboardPage() {
                 <tr>
                   <th align="left">Name</th>
                   <th align="left">Email</th>
-                  <th align="left">Education / Target</th>
+                  <th align="left">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -292,7 +294,7 @@ export default function DashboardPage() {
                   <tr key={student._id}>
                     <td style={{ padding: "8px 0" }}>{student.name}</td>
                     <td>{student.email}</td>
-                    <td>{student.targetExam || student.educationLevel || "-"}</td>
+                    <td>{student.status}</td>
                   </tr>
                 ))}
               </tbody>
@@ -301,69 +303,75 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <section className="card">
-        <h2 style={{ marginTop: 0 }}>Approved Mentors</h2>
-        {approvedMentors.length === 0 ? (
-          <p className="muted">No approved mentors yet.</p>
+      <section className="card grid">
+        <h2 style={{ margin: 0 }}>Mentor Profiles</h2>
+        {mentorProfiles.length === 0 ? (
+          <p className="muted">No mentor profiles found.</p>
         ) : (
-          <div className="grid">
-            {approvedMentors.slice(0, 20).map((mentor) => (
-              <div key={mentor._id} style={{ borderTop: "1px solid #e4ece9", paddingTop: 10 }}>
-                <strong>{mentor.name}</strong>
-                <p className="muted" style={{ margin: "4px 0 0 0" }}>
-                  {mentor.email} | {mentor.primaryCategory || "No primary category"} / {mentor.subCategory || "No subcategory"}
-                </p>
-              </div>
-            ))}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th align="left">Select</th>
+                  <th align="left">Mentor</th>
+                  <th align="left">Email</th>
+                  <th align="left">Phone</th>
+                  <th align="left">Category</th>
+                  <th align="left">Experience</th>
+                  <th align="left">Price</th>
+                  <th align="left">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mentorProfiles.map((mentor) => (
+                  <tr key={mentor._id} style={{ borderTop: "1px solid #e4ece9" }}>
+                    <td style={{ padding: "10px 0" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedMentorIds.includes(mentor._id)}
+                        onChange={() => toggleMentorSelection(mentor._id)}
+                      />
+                    </td>
+                    <td>{mentor.name}</td>
+                    <td>{mentor.email}</td>
+                    <td>{mentor.phoneNumber || "-"}</td>
+                    <td>{[mentor.primaryCategory, mentor.subCategory].filter(Boolean).join(" > ") || "-"}</td>
+                    <td>{mentor.experienceYears ?? 0} yrs</td>
+                    <td>{mentor.sessionPrice ?? 0}</td>
+                    <td>{mentor.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </section>
 
-      {demographics ? (
-        <section className="card grid">
-          <h2 style={{ margin: 0 }}>Mentor Categories</h2>
-          {demographics.mentorCategories.length === 0 ? (
-            <p className="muted">No mentor category data.</p>
-          ) : (
-            demographics.mentorCategories.map((item) => (
-              <p key={item.category} style={{ margin: 0 }}>
-                {item.category}: <strong>{item.count}</strong>
-              </p>
-            ))
-          )}
-
-          <h2 style={{ margin: "8px 0 0 0" }}>Student Interests</h2>
-          {demographics.studentInterests.length === 0 ? (
-            <p className="muted">No student interest data.</p>
-          ) : (
-            demographics.studentInterests.map((item) => (
-              <p key={item.category} style={{ margin: 0 }}>
-                {item.category}: <strong>{item.count}</strong>
-              </p>
-            ))
-          )}
-        </section>
-      ) : null}
-
-      <section className="card">
-        <h2 style={{ marginTop: 0 }}>Collaborate Applications</h2>
-        {collaborateApplications.length === 0 ? (
-          <p className="muted">No collaboration applications yet.</p>
-        ) : (
-          <div className="grid">
-            {collaborateApplications.slice(0, 20).map((item) => (
-              <div key={item._id} style={{ borderTop: "1px solid #e4ece9", paddingTop: 10 }}>
-                <strong>
-                  {item.name} ({item.type})
-                </strong>
-                <p className="muted" style={{ margin: "4px 0 0 0" }}>
-                  {item.email} | {item.organization || "Individual"}
-                </p>
-                {item.message ? <p style={{ margin: "6px 0 0 0" }}>{item.message}</p> : null}
-              </div>
-            ))}
-          </div>
-        )}
+        <form onSubmit={sendDirectMessageToSelectedMentors} className="grid">
+          <h3 style={{ margin: 0 }}>Message Selected Mentors</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Selected mentors: {selectedMentorIds.length}
+          </p>
+          <input
+            className="input"
+            placeholder="Message title"
+            value={directMessageForm.title}
+            onChange={(e) => setDirectMessageForm((prev) => ({ ...prev, title: e.target.value }))}
+          />
+          <textarea
+            className="input"
+            rows={4}
+            placeholder="Write your message to selected mentors"
+            value={directMessageForm.message}
+            onChange={(e) => setDirectMessageForm((prev) => ({ ...prev, message: e.target.value }))}
+          />
+          <button
+            className="button primary"
+            type="submit"
+            disabled={sendingDirect || selectedMentorIds.length === 0}
+          >
+            {sendingDirect ? "Sending..." : "Send Direct Message"}
+          </button>
+        </form>
       </section>
 
       <section className="card grid">
@@ -411,6 +419,7 @@ export default function DashboardPage() {
               <option value="all">all</option>
               <option value="student">student</option>
               <option value="mentor">mentor</option>
+              <option value="admin">admin</option>
             </select>
           </div>
           <button className="button primary" type="submit" disabled={sendingNotification}>

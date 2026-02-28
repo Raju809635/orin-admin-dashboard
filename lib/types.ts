@@ -27,6 +27,26 @@ export type Mentor = {
   createdAt: string;
 };
 
+export type MentorProfileRecord = {
+  _id: string;
+  name: string;
+  email: string;
+  status: "pending" | "approved";
+  profilePhotoUrl?: string;
+  phoneNumber?: string;
+  title?: string;
+  company?: string;
+  experienceYears?: number;
+  primaryCategory?: string;
+  subCategory?: string;
+  specializations?: string[];
+  sessionPrice?: number;
+  about?: string;
+  linkedInUrl?: string;
+  rating?: number;
+  totalSessionsConducted?: number;
+};
+
 export type Student = {
   _id: string;
   name: string;
@@ -71,7 +91,7 @@ export type NotificationRecord = {
   _id: string;
   title: string;
   message: string;
-  type: "announcement" | "system" | "booking" | "approval";
+  type: "announcement" | "system" | "booking" | "approval" | "direct";
   targetRole: "student" | "mentor" | "admin" | "all";
   createdAt: string;
 };
