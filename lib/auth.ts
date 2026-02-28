@@ -26,3 +26,9 @@ export function getUser(): AuthUser | null {
     return null;
   }
 }
+
+export function isAdminUser(user: AuthUser | null): boolean {
+  if (!user) return false;
+  const legacyRole = (user as { role?: string }).role;
+  return user.isAdmin === true || legacyRole === "admin";
+}

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
-import { clearSession, getToken, getUser } from "../../lib/auth";
+import { clearSession, getToken, getUser, isAdminUser } from "../../lib/auth";
 import {
   Demographics,
   Mentor,
@@ -56,7 +56,7 @@ export default function DashboardPage() {
     const currentToken = getToken();
     const currentUser = getUser();
 
-    if (!currentToken || !currentUser || !currentUser.isAdmin) {
+    if (!currentToken || !isAdminUser(currentUser)) {
       router.replace("/login");
       return;
     }

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getToken, getUser } from "../lib/auth";
+import { getToken, getUser, isAdminUser } from "../lib/auth";
 
 export default function HomePage() {
   const router = useRouter();
@@ -11,7 +11,7 @@ export default function HomePage() {
     const token = getToken();
     const user = getUser();
 
-    if (!token || !user || !user.isAdmin) {
+    if (!token || !isAdminUser(user)) {
       router.replace("/login");
       return;
     }

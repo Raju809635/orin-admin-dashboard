@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
-import { saveSession } from "../../lib/auth";
+import { isAdminUser, saveSession } from "../../lib/auth";
 import { LoginResponse } from "../../lib/types";
 
 export default function LoginPage() {
@@ -27,7 +27,7 @@ export default function LoginPage() {
         })
       });
 
-      if (!data.user.isAdmin) {
+      if (!isAdminUser(data.user)) {
         throw new Error("Access denied. Admin account required.");
       }
 
