@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 import { clearSession, getToken, getUser, isAdminUser } from "../../lib/auth";
 import {
+  ComplaintRecord,
   Demographics,
   Mentor,
   MentorProfileRecord,
@@ -31,12 +32,22 @@ const defaultNotification: NotificationForm = {
   targetRole: "all"
 };
 
+const sectionList = [
+  { id: "overview", label: "Overview" },
+  { id: "approvals", label: "Approvals" },
+  { id: "complaints", label: "Complaints" },
+  { id: "mentors", label: "Mentors" },
+  { id: "students", label: "Students" },
+  { id: "notifications", label: "Notifications" }
+] as const;
+
 export default function DashboardPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [activeSection, setActiveSection] = useState<(typeof sectionList)[number]["id"]>("overview");
 
   const [pendingMentors, setPendingMentors] = useState<Mentor[]>([]);
   const [mentorProfiles, setMentorProfiles] = useState<MentorProfileRecord[]>([]);
@@ -44,11 +55,13 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [demographics, setDemographics] = useState<Demographics | null>(null);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+  const [complaints, setComplaints] = useState<ComplaintRecord[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
   const [directMessageForm, setDirectMessageForm] = useState<DirectMentorMessageForm>({
     title: "",
     message: ""
   });
+  const [complaintReplyById, setComplaintReplyById] = useState<Record<string, string>>({});
   const [sendingNotification, setSendingNotification] = useState(false);
   const [sendingDirect, setSendingDirect] = useState(false);
 
@@ -65,21 +78,27 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     async function loadData() {
       try {
         setLoading(true);
         setError("");
 
-        const [mentorData, mentorProfileData, studentData, demographicData, notificationData] = await Promise.all([
+        const [
+          mentorData,
+          mentorProfileData,
+          studentData,
+          demographicData,
+          notificationData,
+          complaintData
+        ] = await Promise.all([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
           apiRequest<MentorProfileRecord[]>("/api/admin/mentors/profiles", {}, token),
           apiRequest<Student[]>("/api/admin/students", {}, token),
           apiRequest<Demographics>("/api/admin/demographics", {}, token),
-          apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token)
+          apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token),
+          apiRequest<ComplaintRecord[]>("/api/complaints/admin", {}, token)
         ]);
 
         setPendingMentors(mentorData);
@@ -87,6 +106,7 @@ export default function DashboardPage() {
         setStudents(studentData);
         setDemographics(demographicData);
         setNotifications(notificationData);
+        setComplaints(complaintData);
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -97,11 +117,10 @@ export default function DashboardPage() {
     loadData();
   }, [token]);
 
-  async function refreshPendingMentors() {
-    if (!token) return;
-    const mentorData = await apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token);
-    setPendingMentors(mentorData);
-  }
+  const openComplaints = useMemo(
+    () => complaints.filter((item) => item.status === "open" || item.status === "in_progress").length,
+    [complaints]
+  );
 
   async function approveMentor(id: string) {
     if (!token) return;
@@ -110,7 +129,7 @@ export default function DashboardPage() {
     try {
       await apiRequest(`/api/admin/approve/${id}`, { method: "PUT" }, token);
       setMessage("Mentor approved.");
-      await refreshPendingMentors();
+      setPendingMentors((prev) => prev.filter((mentor) => mentor._id !== id));
     } catch (err: any) {
       setError(err.message || "Approval failed");
     }
@@ -182,6 +201,36 @@ export default function DashboardPage() {
     }
   }
 
+  async function updateComplaintStatus(complaintId: string, status: ComplaintRecord["status"]) {
+    if (!token) return;
+    setError("");
+    try {
+      const responseText = complaintReplyById[complaintId] || "";
+      const { complaint } = await apiRequest<{ complaint: ComplaintRecord }>(
+        `/api/complaints/admin/${complaintId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            status,
+            adminResponse: responseText
+          })
+        },
+        token
+      );
+
+      setComplaints((prev) => prev.map((item) => (item._id === complaintId ? complaint : item)));
+      setMessage("Complaint updated.");
+    } catch (err: any) {
+      setError(err.message || "Failed to update complaint");
+    }
+  }
+
+  function jumpToSection(id: (typeof sectionList)[number]["id"]) {
+    setActiveSection(id);
+    const target = document.getElementById(id);
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function logout() {
     clearSession();
     router.replace("/login");
@@ -196,255 +245,284 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="page grid">
-      <section className="card" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>ORIN Admin Dashboard</h1>
-          <p className="muted" style={{ marginBottom: 0 }}>
-            Mentor approvals, students, demographics and notifications
-          </p>
+    <main className="admin-shell">
+      <aside className="admin-sidebar">
+        <div className="brand">
+          <h1>ORIN Admin</h1>
+          <p>Operations Console</p>
         </div>
-        <button className="button ghost" onClick={logout}>
+        <nav className="nav-list">
+          {sectionList.map((section) => (
+            <button
+              key={section.id}
+              className={`nav-btn ${activeSection === section.id ? "active" : ""}`}
+              onClick={() => jumpToSection(section.id)}
+            >
+              {section.label}
+            </button>
+          ))}
+        </nav>
+        <button className="button ghost logout-btn" onClick={logout}>
           Logout
         </button>
-      </section>
+      </aside>
 
-      {error ? (
-        <section className="card">
-          <p style={{ margin: 0, color: "#b42318" }}>{error}</p>
-        </section>
-      ) : null}
-      {message ? (
-        <section className="card">
-          <p style={{ margin: 0, color: "#1f7a4c" }}>{message}</p>
-        </section>
-      ) : null}
+      <section className="admin-content">
+        {error ? (
+          <section className="card alert error">
+            <p>{error}</p>
+          </section>
+        ) : null}
+        {message ? (
+          <section className="card alert success">
+            <p>{message}</p>
+          </section>
+        ) : null}
 
-      {demographics ? (
-        <section className="grid kpi">
-          <div className="kpi">
-            <h3 style={{ margin: 0 }}>Total Users</h3>
-            <p style={{ marginBottom: 0 }}>{demographics.totals.users}</p>
-          </div>
-          <div className="kpi">
-            <h3 style={{ margin: 0 }}>Students</h3>
-            <p style={{ marginBottom: 0 }}>{demographics.roles.students}</p>
-          </div>
-          <div className="kpi">
-            <h3 style={{ margin: 0 }}>Mentors</h3>
-            <p style={{ marginBottom: 0 }}>{demographics.roles.mentors}</p>
-          </div>
-          <div className="kpi">
-            <h3 style={{ margin: 0 }}>Pending Mentors</h3>
-            <p style={{ marginBottom: 0 }}>{demographics.totals.pendingMentors}</p>
-          </div>
-          <div className="kpi">
-            <h3 style={{ margin: 0 }}>Total Bookings</h3>
-            <p style={{ marginBottom: 0 }}>{demographics.totals.bookings}</p>
-          </div>
-          <div className="kpi">
-            <h3 style={{ margin: 0 }}>Booking Pending</h3>
-            <p style={{ marginBottom: 0 }}>{demographics.bookings.pending}</p>
-          </div>
+        <section id="overview" className="card section-card">
+          <h2>Overview</h2>
+          <p className="muted">Live platform snapshot and action health.</p>
+          {demographics ? (
+            <div className="grid kpi">
+              <div className="kpi"><h3>Total Users</h3><p>{demographics.totals.users}</p></div>
+              <div className="kpi"><h3>Students</h3><p>{demographics.roles.students}</p></div>
+              <div className="kpi"><h3>Mentors</h3><p>{demographics.roles.mentors}</p></div>
+              <div className="kpi"><h3>Pending Mentors</h3><p>{demographics.totals.pendingMentors}</p></div>
+              <div className="kpi"><h3>Total Bookings</h3><p>{demographics.totals.bookings}</p></div>
+              <div className="kpi"><h3>Open Complaints</h3><p>{openComplaints}</p></div>
+            </div>
+          ) : null}
         </section>
-      ) : null}
 
-      <section className="card">
-        <h2 style={{ marginTop: 0 }}>Pending Mentor Approvals</h2>
-        {pendingMentors.length === 0 ? (
-          <p className="muted">No pending mentors.</p>
-        ) : (
-          <div className="grid">
-            {pendingMentors.map((mentor) => (
-              <div
-                key={mentor._id}
-                style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}
-              >
-                <div>
-                  <strong>{mentor.name}</strong>
-                  <p className="muted" style={{ margin: "4px 0 0 0" }}>
-                    {mentor.email} | {[mentor.primaryCategory, mentor.subCategory].filter(Boolean).join(" > ") || "No category"}
+        <section id="approvals" className="card section-card">
+          <h2>Pending Mentor Approvals</h2>
+          {pendingMentors.length === 0 ? (
+            <p className="muted">No pending mentors.</p>
+          ) : (
+            <div className="list-stack">
+              {pendingMentors.map((mentor) => (
+                <article key={mentor._id} className="row-item">
+                  <div>
+                    <strong>{mentor.name}</strong>
+                    <p className="muted">
+                      {mentor.email} | {[mentor.primaryCategory, mentor.subCategory].filter(Boolean).join(" > ") || "No category"}
+                    </p>
+                  </div>
+                  <button className="button primary" onClick={() => approveMentor(mentor._id)}>
+                    Approve
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section id="complaints" className="card section-card">
+          <h2>Student Complaints</h2>
+          {complaints.length === 0 ? (
+            <p className="muted">No complaints found.</p>
+          ) : (
+            <div className="list-stack">
+              {complaints.map((item) => (
+                <article key={item._id} className="complaint-item">
+                  <div className="complaint-head">
+                    <strong>{item.subject}</strong>
+                    <span className={`pill ${item.status}`}>{item.status}</span>
+                  </div>
+                  <p className="muted">
+                    {item.student?.name} ({item.student?.email}) | {item.category} | {item.priority}
                   </p>
-                </div>
-                <button className="button primary" onClick={() => approveMentor(mentor._id)}>
-                  Approve
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+                  <p>{item.description}</p>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    placeholder="Write admin response"
+                    value={complaintReplyById[item._id] ?? item.adminResponse ?? ""}
+                    onChange={(e) =>
+                      setComplaintReplyById((prev) => ({ ...prev, [item._id]: e.target.value }))
+                    }
+                  />
+                  <div className="inline-actions">
+                    <button className="button ghost" onClick={() => updateComplaintStatus(item._id, "in_progress")}>
+                      Mark In Progress
+                    </button>
+                    <button className="button primary" onClick={() => updateComplaintStatus(item._id, "resolved")}>
+                      Mark Resolved
+                    </button>
+                    <button className="button danger" onClick={() => updateComplaintStatus(item._id, "closed")}>
+                      Close
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
-      <section className="card">
-        <h2 style={{ marginTop: 0 }}>Students</h2>
-        {students.length === 0 ? (
-          <p className="muted">No student records.</p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th align="left">Name</th>
-                  <th align="left">Email</th>
-                  <th align="left">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <tr key={student._id}>
-                    <td style={{ padding: "8px 0" }}>{student.name}</td>
-                    <td>{student.email}</td>
-                    <td>{student.status}</td>
+        <section id="mentors" className="card section-card">
+          <h2>Mentor Profiles</h2>
+          {mentorProfiles.length === 0 ? (
+            <p className="muted">No mentor profiles found.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Select</th>
+                    <th>Mentor</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Category</th>
+                    <th>Experience</th>
+                    <th>Price</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {mentorProfiles.map((mentor) => (
+                    <tr key={mentor._id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedMentorIds.includes(mentor._id)}
+                          onChange={() => toggleMentorSelection(mentor._id)}
+                        />
+                      </td>
+                      <td>{mentor.name}</td>
+                      <td>{mentor.email}</td>
+                      <td>{mentor.phoneNumber || "-"}</td>
+                      <td>{[mentor.primaryCategory, mentor.subCategory].filter(Boolean).join(" > ") || "-"}</td>
+                      <td>{mentor.experienceYears ?? 0} yrs</td>
+                      <td>{mentor.sessionPrice ?? 0}</td>
+                      <td>{mentor.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <form onSubmit={sendDirectMessageToSelectedMentors} className="grid form-block">
+            <h3>Message Selected Mentors</h3>
+            <p className="muted">Selected mentors: {selectedMentorIds.length}</p>
+            <input
+              className="input"
+              placeholder="Message title"
+              value={directMessageForm.title}
+              onChange={(e) => setDirectMessageForm((prev) => ({ ...prev, title: e.target.value }))}
+            />
+            <textarea
+              className="input"
+              rows={4}
+              placeholder="Write your message to selected mentors"
+              value={directMessageForm.message}
+              onChange={(e) => setDirectMessageForm((prev) => ({ ...prev, message: e.target.value }))}
+            />
+            <button className="button primary" type="submit" disabled={sendingDirect || selectedMentorIds.length === 0}>
+              {sendingDirect ? "Sending..." : "Send Direct Message"}
+            </button>
+          </form>
+        </section>
 
-      <section className="card grid">
-        <h2 style={{ margin: 0 }}>Mentor Profiles</h2>
-        {mentorProfiles.length === 0 ? (
-          <p className="muted">No mentor profiles found.</p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th align="left">Select</th>
-                  <th align="left">Mentor</th>
-                  <th align="left">Email</th>
-                  <th align="left">Phone</th>
-                  <th align="left">Category</th>
-                  <th align="left">Experience</th>
-                  <th align="left">Price</th>
-                  <th align="left">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mentorProfiles.map((mentor) => (
-                  <tr key={mentor._id} style={{ borderTop: "1px solid #e4ece9" }}>
-                    <td style={{ padding: "10px 0" }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedMentorIds.includes(mentor._id)}
-                        onChange={() => toggleMentorSelection(mentor._id)}
-                      />
-                    </td>
-                    <td>{mentor.name}</td>
-                    <td>{mentor.email}</td>
-                    <td>{mentor.phoneNumber || "-"}</td>
-                    <td>{[mentor.primaryCategory, mentor.subCategory].filter(Boolean).join(" > ") || "-"}</td>
-                    <td>{mentor.experienceYears ?? 0} yrs</td>
-                    <td>{mentor.sessionPrice ?? 0}</td>
-                    <td>{mentor.status}</td>
+        <section id="students" className="card section-card">
+          <h2>Students</h2>
+          {students.length === 0 ? (
+            <p className="muted">No student records.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {students.map((student) => (
+                    <tr key={student._id}>
+                      <td>{student.name}</td>
+                      <td>{student.email}</td>
+                      <td>{student.status || student.approvalStatus || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-        <form onSubmit={sendDirectMessageToSelectedMentors} className="grid">
-          <h3 style={{ margin: 0 }}>Message Selected Mentors</h3>
-          <p className="muted" style={{ margin: 0 }}>
-            Selected mentors: {selectedMentorIds.length}
-          </p>
-          <input
-            className="input"
-            placeholder="Message title"
-            value={directMessageForm.title}
-            onChange={(e) => setDirectMessageForm((prev) => ({ ...prev, title: e.target.value }))}
-          />
-          <textarea
-            className="input"
-            rows={4}
-            placeholder="Write your message to selected mentors"
-            value={directMessageForm.message}
-            onChange={(e) => setDirectMessageForm((prev) => ({ ...prev, message: e.target.value }))}
-          />
-          <button
-            className="button primary"
-            type="submit"
-            disabled={sendingDirect || selectedMentorIds.length === 0}
-          >
-            {sendingDirect ? "Sending..." : "Send Direct Message"}
-          </button>
-        </form>
-      </section>
-
-      <section className="card grid">
-        <h2 style={{ margin: 0 }}>Send Notification</h2>
-        <form onSubmit={sendNotification} className="grid">
-          <input
-            className="input"
-            placeholder="Title"
-            value={notificationForm.title}
-            onChange={(e) => setNotificationForm((prev) => ({ ...prev, title: e.target.value }))}
-          />
-          <textarea
-            className="input"
-            rows={4}
-            placeholder="Message"
-            value={notificationForm.message}
-            onChange={(e) => setNotificationForm((prev) => ({ ...prev, message: e.target.value }))}
-          />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <select
+        <section id="notifications" className="card section-card">
+          <h2>Notifications</h2>
+          <form onSubmit={sendNotification} className="grid form-block">
+            <input
               className="input"
-              value={notificationForm.type}
-              onChange={(e) =>
-                setNotificationForm((prev) => ({
-                  ...prev,
-                  type: e.target.value as NotificationForm["type"]
-                }))
-              }
-            >
-              <option value="announcement">announcement</option>
-              <option value="system">system</option>
-              <option value="booking">booking</option>
-              <option value="approval">approval</option>
-            </select>
-            <select
+              placeholder="Title"
+              value={notificationForm.title}
+              onChange={(e) => setNotificationForm((prev) => ({ ...prev, title: e.target.value }))}
+            />
+            <textarea
               className="input"
-              value={notificationForm.targetRole}
-              onChange={(e) =>
-                setNotificationForm((prev) => ({
-                  ...prev,
-                  targetRole: e.target.value as NotificationForm["targetRole"]
-                }))
-              }
-            >
-              <option value="all">all</option>
-              <option value="student">student</option>
-              <option value="mentor">mentor</option>
-              <option value="admin">admin</option>
-            </select>
-          </div>
-          <button className="button primary" type="submit" disabled={sendingNotification}>
-            {sendingNotification ? "Sending..." : "Send Notification"}
-          </button>
-        </form>
-      </section>
+              rows={4}
+              placeholder="Message"
+              value={notificationForm.message}
+              onChange={(e) => setNotificationForm((prev) => ({ ...prev, message: e.target.value }))}
+            />
+            <div className="split">
+              <select
+                className="input"
+                value={notificationForm.type}
+                onChange={(e) =>
+                  setNotificationForm((prev) => ({
+                    ...prev,
+                    type: e.target.value as NotificationForm["type"]
+                  }))
+                }
+              >
+                <option value="announcement">announcement</option>
+                <option value="system">system</option>
+                <option value="booking">booking</option>
+                <option value="approval">approval</option>
+              </select>
+              <select
+                className="input"
+                value={notificationForm.targetRole}
+                onChange={(e) =>
+                  setNotificationForm((prev) => ({
+                    ...prev,
+                    targetRole: e.target.value as NotificationForm["targetRole"]
+                  }))
+                }
+              >
+                <option value="all">all</option>
+                <option value="student">student</option>
+                <option value="mentor">mentor</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <button className="button primary" type="submit" disabled={sendingNotification}>
+              {sendingNotification ? "Sending..." : "Send Notification"}
+            </button>
+          </form>
 
-      <section className="card">
-        <h2 style={{ marginTop: 0 }}>Recent Notifications</h2>
-        {notifications.length === 0 ? (
-          <p className="muted">No notifications sent yet.</p>
-        ) : (
-          <div className="grid">
-            {notifications.slice(0, 15).map((item) => (
-              <div key={item._id} style={{ borderTop: "1px solid #e4ece9", paddingTop: 10 }}>
-                <strong>{item.title}</strong>
-                <p style={{ margin: "4px 0", color: "#425350" }}>{item.message}</p>
-                <p className="muted" style={{ margin: 0 }}>
-                  {item.type} | target: {item.targetRole}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+          <h3>Recent Notifications</h3>
+          {notifications.length === 0 ? (
+            <p className="muted">No notifications sent yet.</p>
+          ) : (
+            <div className="list-stack">
+              {notifications.slice(0, 15).map((item) => (
+                <article key={item._id} className="row-item notification-row">
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p className="muted">{item.message}</p>
+                    <p className="muted">
+                      {item.type} | target: {item.targetRole}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </section>
     </main>
   );

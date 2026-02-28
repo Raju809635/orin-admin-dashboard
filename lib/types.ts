@@ -97,3 +97,19 @@ export type NotificationRecord = {
   targetRole: "student" | "mentor" | "admin" | "all";
   createdAt: string;
 };
+
+export type ComplaintRecord = {
+  _id: string;
+  subject: string;
+  description: string;
+  category: "technical" | "mentor" | "booking" | "payment" | "general";
+  priority: "low" | "medium" | "high";
+  status: "open" | "in_progress" | "resolved" | "closed";
+  adminResponse?: string;
+  createdAt: string;
+  student?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+};
