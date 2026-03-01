@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 import { clearSession, getToken, getUser, isAdminUser } from "../../lib/auth";
 import {
+  ChatConversation,
+  ChatMessageRecord,
   ComplaintRecord,
   Demographics,
   ManualPaymentRecord,
@@ -39,12 +41,14 @@ const sectionList = [
   { id: "payments", label: "Payments" },
   { id: "complaints", label: "Complaints" },
   { id: "mentors", label: "Mentors" },
+  { id: "chats", label: "Mentor Chats" },
   { id: "students", label: "Students" },
   { id: "notifications", label: "Notifications" }
 ] as const;
 
 export default function DashboardPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -67,6 +71,24 @@ export default function DashboardPage() {
   const [complaintReplyById, setComplaintReplyById] = useState<Record<string, string>>({});
   const [sendingNotification, setSendingNotification] = useState(false);
   const [sendingDirect, setSendingDirect] = useState(false);
+  const [chatConversations, setChatConversations] = useState<ChatConversation[]>([]);
+  const [activeChatUserId, setActiveChatUserId] = useState<string>("");
+  const [activeChatMentorName, setActiveChatMentorName] = useState<string>("");
+  const [chatMessages, setChatMessages] = useState<ChatMessageRecord[]>([]);
+  const [chatText, setChatText] = useState("");
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [sendingChatMessage, setSendingChatMessage] = useState(false);
+
+  const validSections = useMemo(() => sectionList.map((item) => item.id), []);
+
+  useEffect(() => {
+    const parts = (pathname || "").split("/").filter(Boolean);
+    const sectionFromPath = parts.length >= 2 ? parts[1] : "overview";
+    const normalized = validSections.includes(sectionFromPath as (typeof sectionList)[number]["id"])
+      ? (sectionFromPath as (typeof sectionList)[number]["id"])
+      : "overview";
+    setActiveSection(normalized);
+  }, [pathname, validSections]);
 
   useEffect(() => {
     const currentToken = getToken();
@@ -95,7 +117,8 @@ export default function DashboardPage() {
           demographicData,
           notificationData,
           complaintData,
-          manualPaymentData
+          manualPaymentData,
+          chatConversationData
         ] = await Promise.all([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
           apiRequest<MentorProfileRecord[]>("/api/admin/mentors/profiles", {}, token),
@@ -103,7 +126,8 @@ export default function DashboardPage() {
           apiRequest<Demographics>("/api/admin/demographics", {}, token),
           apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token),
           apiRequest<ComplaintRecord[]>("/api/complaints/admin", {}, token),
-          apiRequest<ManualPaymentRecord[]>("/api/sessions/admin/manual-payments", {}, token)
+          apiRequest<ManualPaymentRecord[]>("/api/sessions/admin/manual-payments", {}, token),
+          apiRequest<ChatConversation[]>("/api/chat/conversations", {}, token)
         ]);
 
         setPendingMentors(mentorData);
@@ -113,6 +137,9 @@ export default function DashboardPage() {
         setNotifications(notificationData);
         setComplaints(complaintData);
         setManualPayments(manualPaymentData);
+        setChatConversations(
+          chatConversationData.filter((item) => item.counterpart?.role === "mentor")
+        );
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -259,10 +286,69 @@ export default function DashboardPage() {
     }
   }
 
-  function jumpToSection(id: (typeof sectionList)[number]["id"]) {
-    setActiveSection(id);
-    const target = document.getElementById(id);
-    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  async function openMentorChat(userId: string, mentorName: string) {
+    if (!token) return;
+
+    try {
+      setLoadingChat(true);
+      setError("");
+      const response = await apiRequest<{ counterpart: { _id: string; name: string }; messages: ChatMessageRecord[] }>(
+        `/api/chat/messages/${userId}`,
+        {},
+        token
+      );
+      await apiRequest(`/api/chat/messages/${userId}/read`, { method: "PATCH" }, token);
+      setActiveChatUserId(userId);
+      setActiveChatMentorName(response.counterpart?.name || mentorName);
+      setChatMessages(response.messages || []);
+      const refreshed = await apiRequest<ChatConversation[]>("/api/chat/conversations", {}, token);
+      setChatConversations(refreshed.filter((item) => item.counterpart?.role === "mentor"));
+    } catch (err: any) {
+      setError(err.message || "Failed to open chat.");
+    } finally {
+      setLoadingChat(false);
+    }
+  }
+
+  async function sendMentorChatMessage(event: FormEvent) {
+    event.preventDefault();
+    if (!token || !activeChatUserId || !chatText.trim()) return;
+
+    try {
+      setSendingChatMessage(true);
+      setError("");
+      await apiRequest(
+        `/api/chat/messages/${activeChatUserId}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ text: chatText.trim() })
+        },
+        token
+      );
+
+      const response = await apiRequest<{ counterpart: { _id: string; name: string }; messages: ChatMessageRecord[] }>(
+        `/api/chat/messages/${activeChatUserId}`,
+        {},
+        token
+      );
+      setChatMessages(response.messages || []);
+      setChatText("");
+      const refreshed = await apiRequest<ChatConversation[]>("/api/chat/conversations", {}, token);
+      setChatConversations(refreshed.filter((item) => item.counterpart?.role === "mentor"));
+    } catch (err: any) {
+      setError(err.message || "Failed to send chat message.");
+    } finally {
+      setSendingChatMessage(false);
+    }
+  }
+
+  function gotoSection(id: (typeof sectionList)[number]["id"]) {
+    const targetPath = id === "overview" ? "/dashboard" : `/dashboard/${id}`;
+    router.push(targetPath);
+  }
+
+  function sectionDisplay(id: (typeof sectionList)[number]["id"]) {
+    return activeSection === id ? undefined : { display: "none" as const };
   }
 
   function logout() {
@@ -290,7 +376,7 @@ export default function DashboardPage() {
             <button
               key={section.id}
               className={`nav-btn ${activeSection === section.id ? "active" : ""}`}
-              onClick={() => jumpToSection(section.id)}
+              onClick={() => gotoSection(section.id)}
             >
               {section.label}
             </button>
@@ -313,7 +399,7 @@ export default function DashboardPage() {
           </section>
         ) : null}
 
-        <section id="overview" className="card section-card">
+        <section id="overview" className="card section-card" style={sectionDisplay("overview")}>
           <h2>Overview</h2>
           <p className="muted">Live platform snapshot and action health.</p>
           {demographics ? (
@@ -328,7 +414,7 @@ export default function DashboardPage() {
           ) : null}
         </section>
 
-        <section id="approvals" className="card section-card">
+        <section id="approvals" className="card section-card" style={sectionDisplay("approvals")}>
           <h2>Pending Mentor Approvals</h2>
           {pendingMentors.length === 0 ? (
             <p className="muted">No pending mentors.</p>
@@ -351,7 +437,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section id="payments" className="card section-card">
+        <section id="payments" className="card section-card" style={sectionDisplay("payments")}>
           <h2>Payment Verifications</h2>
           {manualPayments.length === 0 ? (
             <p className="muted">No pending manual payments.</p>
@@ -404,7 +490,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section id="complaints" className="card section-card">
+        <section id="complaints" className="card section-card" style={sectionDisplay("complaints")}>
           <h2>Student Complaints</h2>
           {complaints.length === 0 ? (
             <p className="muted">No complaints found.</p>
@@ -446,7 +532,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section id="mentors" className="card section-card">
+        <section id="mentors" className="card section-card" style={sectionDisplay("mentors")}>
           <h2>Mentor Profiles</h2>
           {mentorProfiles.length === 0 ? (
             <p className="muted">No mentor profiles found.</p>
@@ -510,7 +596,79 @@ export default function DashboardPage() {
           </form>
         </section>
 
-        <section id="students" className="card section-card">
+        <section id="chats" className="card section-card" style={sectionDisplay("chats")}>
+          <h2>Mentor Chats</h2>
+          <p className="muted">WhatsApp-style mentor inbox for admin support.</p>
+          <div className="grid" style={{ gridTemplateColumns: "minmax(260px, 1fr) minmax(320px, 2fr)", gap: 16 }}>
+            <div>
+              {chatConversations.length === 0 ? (
+                <p className="muted">No mentor conversations yet.</p>
+              ) : (
+                <div className="list-stack">
+                  {chatConversations.map((chat) => {
+                    const isActive = activeChatUserId === chat.counterpartId;
+                    return (
+                      <button
+                        type="button"
+                        key={chat.counterpartId}
+                        className={`row-item ${isActive ? "active-chat" : ""}`}
+                        onClick={() => openMentorChat(chat.counterpartId, chat.counterpart?.name || "Mentor")}
+                        style={{ textAlign: "left", border: "1px solid #e5e7eb", background: isActive ? "#E8F5EE" : "#fff" }}
+                      >
+                        <div>
+                          <strong>{chat.counterpart?.name || "Mentor"}</strong>
+                          <p className="muted">{chat.counterpart?.phoneNumber || "No phone"}</p>
+                          <p className="muted">{chat.lastMessage}</p>
+                          <p className="muted">{new Date(chat.lastMessageAt).toLocaleString()}</p>
+                        </div>
+                        {chat.unreadCount > 0 ? <span className="pill open">{chat.unreadCount} new</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div>
+              {!activeChatUserId ? (
+                <p className="muted">Select a mentor conversation.</p>
+              ) : (
+                <>
+                  <h3>{activeChatMentorName || "Mentor"}</h3>
+                  {loadingChat ? <p className="muted">Loading chat...</p> : null}
+                  <div className="list-stack" style={{ maxHeight: 360, overflowY: "auto", marginBottom: 10 }}>
+                    {chatMessages.length === 0 ? (
+                      <p className="muted">No messages yet.</p>
+                    ) : (
+                      chatMessages.map((item) => (
+                        <article key={item._id} className="row-item">
+                          <p>
+                            <strong>{item.sender === activeChatUserId ? activeChatMentorName || "Mentor" : "Admin"}:</strong>{" "}
+                            {item.text}
+                          </p>
+                          <p className="muted">{new Date(item.createdAt).toLocaleString()}</p>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                  <form onSubmit={sendMentorChatMessage} className="grid form-block">
+                    <textarea
+                      className="input"
+                      rows={3}
+                      placeholder="Type reply to mentor"
+                      value={chatText}
+                      onChange={(e) => setChatText(e.target.value)}
+                    />
+                    <button className="button primary" type="submit" disabled={sendingChatMessage || !chatText.trim()}>
+                      {sendingChatMessage ? "Sending..." : "Send Reply"}
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section id="students" className="card section-card" style={sectionDisplay("students")}>
           <h2>Students</h2>
           {students.length === 0 ? (
             <p className="muted">No student records.</p>
@@ -538,7 +696,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section id="notifications" className="card section-card">
+        <section id="notifications" className="card section-card" style={sectionDisplay("notifications")}>
           <h2>Notifications</h2>
           <form onSubmit={sendNotification} className="grid form-block">
             <input

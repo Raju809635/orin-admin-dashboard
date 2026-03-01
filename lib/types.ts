@@ -137,3 +137,31 @@ export type ManualPaymentRecord = {
     email: string;
   };
 };
+
+export type ChatUser = {
+  _id: string;
+  name: string;
+  email: string;
+  role: "student" | "mentor" | "admin";
+  status?: "pending" | "approved" | "rejected";
+  approvalStatus?: "pending" | "approved" | "rejected";
+  phoneNumber?: string;
+};
+
+export type ChatConversation = {
+  counterpartId: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+  counterpart: ChatUser;
+};
+
+export type ChatMessageRecord = {
+  _id: string;
+  sender: string;
+  recipient: string;
+  text: string;
+  readAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+};
