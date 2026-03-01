@@ -7,6 +7,7 @@ import { clearSession, getToken, getUser, isAdminUser } from "../../lib/auth";
 import {
   ChatConversation,
   ChatMessageRecord,
+  CollaborateApplication,
   ComplaintRecord,
   Demographics,
   ManualPaymentRecord,
@@ -40,6 +41,7 @@ const sectionList = [
   { id: "approvals", label: "Approvals" },
   { id: "payments", label: "Payments" },
   { id: "complaints", label: "Complaints" },
+  { id: "collaborations", label: "Collaborations" },
   { id: "mentors", label: "Mentors" },
   { id: "chats", label: "Mentor Chats" },
   { id: "students", label: "Students" },
@@ -65,6 +67,8 @@ export default function DashboardPage() {
   const [demographics, setDemographics] = useState<Demographics | null>(null);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [complaints, setComplaints] = useState<ComplaintRecord[]>([]);
+  const [collaborateApplications, setCollaborateApplications] = useState<CollaborateApplication[]>([]);
+  const [collaborateNotesById, setCollaborateNotesById] = useState<Record<string, string>>({});
   const [manualPayments, setManualPayments] = useState<ManualPaymentRecord[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
   const [directMessageForm, setDirectMessageForm] = useState<DirectMentorMessageForm>({
@@ -100,6 +104,7 @@ export default function DashboardPage() {
           demographics: Demographics | null;
           notifications: NotificationRecord[];
           complaints: ComplaintRecord[];
+          collaborateApplications: CollaborateApplication[];
           manualPayments: ManualPaymentRecord[];
           chatConversations: ChatConversation[];
         };
@@ -110,6 +115,7 @@ export default function DashboardPage() {
         setDemographics(cached.demographics || null);
         setNotifications(cached.notifications || []);
         setComplaints(cached.complaints || []);
+        setCollaborateApplications(cached.collaborateApplications || []);
         setManualPayments(cached.manualPayments || []);
         setChatConversations(cached.chatConversations || []);
         setLoading(false);
@@ -157,6 +163,7 @@ export default function DashboardPage() {
           demographicData,
           notificationData,
           complaintData,
+          collaborateData,
           manualPaymentData,
           chatConversationData
         ] = await Promise.all([
@@ -166,6 +173,7 @@ export default function DashboardPage() {
           apiRequest<Demographics>("/api/admin/demographics", {}, token),
           apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token),
           apiRequest<ComplaintRecord[]>("/api/complaints/admin", {}, token),
+          apiRequest<CollaborateApplication[]>("/api/admin/collaborate/applications", {}, token),
           apiRequest<ManualPaymentRecord[]>("/api/sessions/admin/manual-payments", {}, token),
           apiRequest<ChatConversation[]>("/api/chat/conversations", {}, token)
         ]);
@@ -176,6 +184,7 @@ export default function DashboardPage() {
         setDemographics(demographicData);
         setNotifications(notificationData);
         setComplaints(complaintData);
+        setCollaborateApplications(collaborateData);
         setManualPayments(manualPaymentData);
         setChatConversations(
           chatConversationData.filter((item) => item.counterpart?.role === "mentor")
@@ -191,6 +200,7 @@ export default function DashboardPage() {
               demographics: demographicData,
               notifications: notificationData,
               complaints: complaintData,
+              collaborateApplications: collaborateData,
               manualPayments: manualPaymentData,
               chatConversations: chatConversationData.filter((item) => item.counterpart?.role === "mentor")
             })
@@ -339,6 +349,28 @@ export default function DashboardPage() {
       setMessage(action === "verify" ? "Payment verified." : "Payment rejected.");
     } catch (err: any) {
       setError(err.message || "Failed to review payment");
+    }
+  }
+
+  async function reviewCollaborateApplication(applicationId: string, action: "approve" | "reject") {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      const adminNotes = collaborateNotesById[applicationId] || "";
+      await apiRequest(
+        `/api/admin/collaborate/applications/${applicationId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ action, adminNotes })
+        },
+        token
+      );
+      const refreshed = await apiRequest<CollaborateApplication[]>("/api/admin/collaborate/applications", {}, token);
+      setCollaborateApplications(refreshed);
+      setMessage(action === "approve" ? "Collaboration approved." : "Collaboration rejected.");
+    } catch (err: any) {
+      setError(err.message || "Failed to review collaboration.");
     }
   }
 
@@ -591,6 +623,51 @@ export default function DashboardPage() {
                       Close
                     </button>
                   </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section id="collaborations" className="card section-card" style={sectionDisplay("collaborations")}>
+          <h2>Collaborate Applications</h2>
+          {collaborateApplications.length === 0 ? (
+            <p className="muted">No collaboration applications yet.</p>
+          ) : (
+            <div className="list-stack">
+              {collaborateApplications.map((item) => (
+                <article key={item._id} className="complaint-item">
+                  <div className="complaint-head">
+                    <strong>{item.name} ({item.type})</strong>
+                    <span className={`pill ${item.status === "pending" ? "open" : item.status}`}>{item.status}</span>
+                  </div>
+                  <p className="muted">{item.email} {item.organization ? `| ${item.organization}` : ""}</p>
+                  <p>{item.message || "No message provided."}</p>
+                  <p className="muted">Submitted: {new Date(item.createdAt).toLocaleString()}</p>
+                  {item.reviewedAt ? (
+                    <p className="muted">
+                      Reviewed: {new Date(item.reviewedAt).toLocaleString()} by {item.reviewedBy?.name || "Admin"}
+                    </p>
+                  ) : null}
+                  <textarea
+                    className="input"
+                    rows={3}
+                    placeholder="Admin notes"
+                    value={collaborateNotesById[item._id] ?? item.adminNotes ?? ""}
+                    onChange={(e) =>
+                      setCollaborateNotesById((prev) => ({ ...prev, [item._id]: e.target.value }))
+                    }
+                  />
+                  {item.status === "pending" ? (
+                    <div className="inline-actions">
+                      <button className="button primary" onClick={() => reviewCollaborateApplication(item._id, "approve")}>
+                        Approve
+                      </button>
+                      <button className="button danger" onClick={() => reviewCollaborateApplication(item._id, "reject")}>
+                        Reject
+                      </button>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

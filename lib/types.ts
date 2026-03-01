@@ -87,6 +87,14 @@ export type CollaborateApplication = {
   organization?: string;
   type: "leader" | "founder" | "mentor";
   message?: string;
+  status: "pending" | "approved" | "rejected";
+  adminNotes?: string;
+  reviewedAt?: string;
+  reviewedBy?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
   createdAt: string;
 };
 
