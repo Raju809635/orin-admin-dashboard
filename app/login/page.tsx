@@ -31,7 +31,7 @@ export default function LoginPage() {
         throw new Error("Access denied. Admin account required.");
       }
 
-      saveSession(data.token, data.user);
+      saveSession(data.token, data.refreshToken, data.user);
       router.replace("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed");
