@@ -46,11 +46,14 @@ const sectionList = [
   { id: "notifications", label: "Notifications" }
 ] as const;
 
+const DASHBOARD_CACHE_KEY = "orin_admin_dashboard_cache_v1";
+
 export default function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cacheHydrated, setCacheHydrated] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [activeSection, setActiveSection] = useState<(typeof sectionList)[number]["id"]>("overview");
@@ -82,6 +85,43 @@ export default function DashboardPage() {
   const validSections = useMemo(() => sectionList.map((item) => item.id), []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      setCacheHydrated(true);
+      return;
+    }
+
+    try {
+      const raw = window.sessionStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw) as {
+          pendingMentors: Mentor[];
+          mentorProfiles: MentorProfileRecord[];
+          students: Student[];
+          demographics: Demographics | null;
+          notifications: NotificationRecord[];
+          complaints: ComplaintRecord[];
+          manualPayments: ManualPaymentRecord[];
+          chatConversations: ChatConversation[];
+        };
+
+        setPendingMentors(cached.pendingMentors || []);
+        setMentorProfiles(cached.mentorProfiles || []);
+        setStudents(cached.students || []);
+        setDemographics(cached.demographics || null);
+        setNotifications(cached.notifications || []);
+        setComplaints(cached.complaints || []);
+        setManualPayments(cached.manualPayments || []);
+        setChatConversations(cached.chatConversations || []);
+        setLoading(false);
+      }
+    } catch {
+      // ignore cache parsing errors
+    } finally {
+      setCacheHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
     const parts = (pathname || "").split("/").filter(Boolean);
     const sectionFromPath = parts.length >= 2 ? parts[1] : "overview";
     const normalized = validSections.includes(sectionFromPath as (typeof sectionList)[number]["id"])
@@ -103,11 +143,11 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !cacheHydrated) return;
 
     async function loadData() {
       try {
-        setLoading(true);
+        setLoading((prev) => prev && !demographics);
         setError("");
 
         const [
@@ -140,6 +180,22 @@ export default function DashboardPage() {
         setChatConversations(
           chatConversationData.filter((item) => item.counterpart?.role === "mentor")
         );
+
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(
+            DASHBOARD_CACHE_KEY,
+            JSON.stringify({
+              pendingMentors: mentorData,
+              mentorProfiles: mentorProfileData,
+              students: studentData,
+              demographics: demographicData,
+              notifications: notificationData,
+              complaints: complaintData,
+              manualPayments: manualPaymentData,
+              chatConversations: chatConversationData.filter((item) => item.counterpart?.role === "mentor")
+            })
+          );
+        }
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -148,7 +204,7 @@ export default function DashboardPage() {
     }
 
     loadData();
-  }, [token]);
+  }, [token, cacheHydrated, demographics]);
 
   const openComplaints = useMemo(
     () => complaints.filter((item) => item.status === "open" || item.status === "in_progress").length,
