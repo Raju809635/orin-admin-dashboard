@@ -521,9 +521,18 @@ export default function DashboardPage() {
                       </td>
                       <td>
                         {item.paymentScreenshot ? (
-                          <a href={item.paymentScreenshot} target="_blank" rel="noreferrer">
-                            View Proof
-                          </a>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <a href={item.paymentScreenshot} target="_blank" rel="noreferrer">
+                              <img
+                                src={item.paymentScreenshot}
+                                alt="Payment proof"
+                                style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, border: "1px solid #e5e7eb" }}
+                              />
+                            </a>
+                            <a href={item.paymentScreenshot} target="_blank" rel="noreferrer">
+                              Open full screenshot
+                            </a>
+                          </div>
                         ) : (
                           "-"
                         )}
