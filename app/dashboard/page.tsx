@@ -7,6 +7,7 @@ import { clearSession, getToken, getUser, isAdminUser } from "../../lib/auth";
 import {
   ComplaintRecord,
   Demographics,
+  ManualPaymentRecord,
   Mentor,
   MentorProfileRecord,
   NotificationRecord,
@@ -35,6 +36,7 @@ const defaultNotification: NotificationForm = {
 const sectionList = [
   { id: "overview", label: "Overview" },
   { id: "approvals", label: "Approvals" },
+  { id: "payments", label: "Payments" },
   { id: "complaints", label: "Complaints" },
   { id: "mentors", label: "Mentors" },
   { id: "students", label: "Students" },
@@ -56,6 +58,7 @@ export default function DashboardPage() {
   const [demographics, setDemographics] = useState<Demographics | null>(null);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [complaints, setComplaints] = useState<ComplaintRecord[]>([]);
+  const [manualPayments, setManualPayments] = useState<ManualPaymentRecord[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
   const [directMessageForm, setDirectMessageForm] = useState<DirectMentorMessageForm>({
     title: "",
@@ -91,14 +94,16 @@ export default function DashboardPage() {
           studentData,
           demographicData,
           notificationData,
-          complaintData
+          complaintData,
+          manualPaymentData
         ] = await Promise.all([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
           apiRequest<MentorProfileRecord[]>("/api/admin/mentors/profiles", {}, token),
           apiRequest<Student[]>("/api/admin/students", {}, token),
           apiRequest<Demographics>("/api/admin/demographics", {}, token),
           apiRequest<NotificationRecord[]>("/api/admin/notifications", {}, token),
-          apiRequest<ComplaintRecord[]>("/api/complaints/admin", {}, token)
+          apiRequest<ComplaintRecord[]>("/api/complaints/admin", {}, token),
+          apiRequest<ManualPaymentRecord[]>("/api/sessions/admin/manual-payments", {}, token)
         ]);
 
         setPendingMentors(mentorData);
@@ -107,6 +112,7 @@ export default function DashboardPage() {
         setDemographics(demographicData);
         setNotifications(notificationData);
         setComplaints(complaintData);
+        setManualPayments(manualPaymentData);
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -225,6 +231,34 @@ export default function DashboardPage() {
     }
   }
 
+  async function reviewManualPayment(sessionId: string, action: "verify" | "reject") {
+    if (!token) return;
+    setError("");
+    setMessage("");
+
+    try {
+      const rejectReason =
+        action === "reject"
+          ? window.prompt("Reason for rejection", "Payment proof unclear") || ""
+          : "";
+
+      await apiRequest<{ message: string }>(
+        `/api/sessions/admin/manual-payments/${sessionId}/review`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ action, rejectReason })
+        },
+        token
+      );
+
+      const refreshed = await apiRequest<ManualPaymentRecord[]>("/api/sessions/admin/manual-payments", {}, token);
+      setManualPayments(refreshed);
+      setMessage(action === "verify" ? "Payment verified." : "Payment rejected.");
+    } catch (err: any) {
+      setError(err.message || "Failed to review payment");
+    }
+  }
+
   function jumpToSection(id: (typeof sectionList)[number]["id"]) {
     setActiveSection(id);
     const target = document.getElementById(id);
@@ -313,6 +347,59 @@ export default function DashboardPage() {
                   </button>
                 </article>
               ))}
+            </div>
+          )}
+        </section>
+
+        <section id="payments" className="card section-card">
+          <h2>Payment Verifications</h2>
+          {manualPayments.length === 0 ? (
+            <p className="muted">No pending manual payments.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Mentor</th>
+                    <th>Amount</th>
+                    <th>Screenshot</th>
+                    <th>Date</th>
+                    <th>Reference</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manualPayments.map((item) => (
+                    <tr key={item._id}>
+                      <td>{item.studentId?.name || "-"}</td>
+                      <td>{item.mentorId?.name || "-"}</td>
+                      <td>
+                        {item.currency || "INR"} {item.amount}
+                      </td>
+                      <td>
+                        {item.paymentScreenshot ? (
+                          <a href={item.paymentScreenshot} target="_blank" rel="noreferrer">
+                            View Proof
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>{new Date(item.createdAt).toLocaleString()}</td>
+                      <td>{item.transactionReference || "-"}</td>
+                      <td className="inline-actions">
+                        <button className="button primary" onClick={() => reviewManualPayment(item._id, "verify")}>
+                          Verify
+                        </button>
+                        <button className="button danger" onClick={() => reviewManualPayment(item._id, "reject")}>
+                          Reject
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>

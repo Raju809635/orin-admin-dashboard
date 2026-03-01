@@ -113,3 +113,26 @@ export type ComplaintRecord = {
     email: string;
   };
 };
+
+export type ManualPaymentRecord = {
+  _id: string;
+  date: string;
+  time: string;
+  amount: number;
+  currency?: string;
+  paymentScreenshot?: string;
+  transactionReference?: string;
+  paymentStatus: "pending" | "waiting_verification" | "verified" | "rejected" | "paid";
+  status: "pending" | "payment_pending" | "confirmed" | "approved" | "completed" | "cancelled" | "rejected";
+  createdAt: string;
+  studentId?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  mentorId?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+};
