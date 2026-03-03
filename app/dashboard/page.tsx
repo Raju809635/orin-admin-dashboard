@@ -534,8 +534,8 @@ export default function DashboardPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Student</th>
-                    <th>Mentor</th>
+                    <th>Paid By → Paid To</th>
+                    <th>Session Slot</th>
                     <th>Amount</th>
                     <th>Screenshot</th>
                     <th>Date</th>
@@ -546,8 +546,21 @@ export default function DashboardPage() {
                 <tbody>
                   {manualPayments.map((item) => (
                     <tr key={item._id}>
-                      <td>{item.studentId?.name || "-"}</td>
-                      <td>{item.mentorId?.name || "-"}</td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span>
+                            <strong>Student:</strong> {item.studentId?.name || "-"}
+                          </span>
+                          <span className="muted">{item.studentId?.email || "-"}</span>
+                          <span>
+                            <strong>Mentor:</strong> {item.mentorId?.name || "-"}
+                          </span>
+                          <span className="muted">{item.mentorId?.email || "-"}</span>
+                        </div>
+                      </td>
+                      <td>
+                        {item.date} {item.time}
+                      </td>
                       <td>
                         {item.currency || "INR"} {item.amount}
                       </td>
