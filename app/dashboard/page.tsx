@@ -5,6 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 import { clearSession, getToken, getUser, isAdminUser } from "../../lib/auth";
 import {
+  AdminChallengeRecord,
+  AdminConnectionRecord,
+  AdminFollowRecord,
+  AdminLiveSessionRecord,
+  AdminMentorGroupRecord,
+  AdminNetworkPost,
   ChatConversation,
   ChatMessageRecord,
   CollaborateApplication,
@@ -13,6 +19,7 @@ import {
   ManualPaymentRecord,
   Mentor,
   MentorProfileRecord,
+  NetworkAdminOverview,
   NotificationRecord,
   Student
 } from "../../lib/types";
@@ -44,6 +51,7 @@ const sectionList = [
   { id: "collaborations", label: "Collaborations" },
   { id: "mentors", label: "Mentors" },
   { id: "chats", label: "Mentor Chats" },
+  { id: "network", label: "Network & Social" },
   { id: "students", label: "Students" },
   { id: "notifications", label: "Notifications" }
 ] as const;
@@ -70,6 +78,13 @@ export default function DashboardPage() {
   const [collaborateApplications, setCollaborateApplications] = useState<CollaborateApplication[]>([]);
   const [collaborateNotesById, setCollaborateNotesById] = useState<Record<string, string>>({});
   const [manualPayments, setManualPayments] = useState<ManualPaymentRecord[]>([]);
+  const [networkOverview, setNetworkOverview] = useState<NetworkAdminOverview | null>(null);
+  const [networkPosts, setNetworkPosts] = useState<AdminNetworkPost[]>([]);
+  const [networkConnections, setNetworkConnections] = useState<AdminConnectionRecord[]>([]);
+  const [networkFollows, setNetworkFollows] = useState<AdminFollowRecord[]>([]);
+  const [networkGroups, setNetworkGroups] = useState<AdminMentorGroupRecord[]>([]);
+  const [networkLiveSessions, setNetworkLiveSessions] = useState<AdminLiveSessionRecord[]>([]);
+  const [networkChallenges, setNetworkChallenges] = useState<AdminChallengeRecord[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
   const [directMessageForm, setDirectMessageForm] = useState<DirectMentorMessageForm>({
     title: "",
@@ -106,6 +121,13 @@ export default function DashboardPage() {
           complaints: ComplaintRecord[];
           collaborateApplications: CollaborateApplication[];
           manualPayments: ManualPaymentRecord[];
+          networkOverview: NetworkAdminOverview | null;
+          networkPosts: AdminNetworkPost[];
+          networkConnections: AdminConnectionRecord[];
+          networkFollows: AdminFollowRecord[];
+          networkGroups: AdminMentorGroupRecord[];
+          networkLiveSessions: AdminLiveSessionRecord[];
+          networkChallenges: AdminChallengeRecord[];
           chatConversations: ChatConversation[];
         };
 
@@ -117,6 +139,13 @@ export default function DashboardPage() {
         setComplaints(cached.complaints || []);
         setCollaborateApplications(cached.collaborateApplications || []);
         setManualPayments(cached.manualPayments || []);
+        setNetworkOverview(cached.networkOverview || null);
+        setNetworkPosts(cached.networkPosts || []);
+        setNetworkConnections(cached.networkConnections || []);
+        setNetworkFollows(cached.networkFollows || []);
+        setNetworkGroups(cached.networkGroups || []);
+        setNetworkLiveSessions(cached.networkLiveSessions || []);
+        setNetworkChallenges(cached.networkChallenges || []);
         setChatConversations(cached.chatConversations || []);
         setLoading(false);
       }
@@ -165,7 +194,14 @@ export default function DashboardPage() {
           complaintData,
           collaborateData,
           manualPaymentData,
-          chatConversationData
+          chatConversationData,
+          networkOverviewData,
+          networkPostsData,
+          networkConnectionsData,
+          networkFollowsData,
+          networkGroupsData,
+          networkLiveSessionsData,
+          networkChallengesData
         ] = await Promise.all([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
           apiRequest<MentorProfileRecord[]>("/api/admin/mentors/profiles", {}, token),
@@ -175,7 +211,14 @@ export default function DashboardPage() {
           apiRequest<ComplaintRecord[]>("/api/complaints/admin", {}, token),
           apiRequest<CollaborateApplication[]>("/api/admin/collaborate/applications", {}, token),
           apiRequest<ManualPaymentRecord[]>("/api/sessions/admin/manual-payments", {}, token),
-          apiRequest<ChatConversation[]>("/api/chat/conversations", {}, token)
+          apiRequest<ChatConversation[]>("/api/chat/conversations", {}, token),
+          apiRequest<NetworkAdminOverview>("/api/admin/network/overview", {}, token),
+          apiRequest<AdminNetworkPost[]>("/api/admin/network/posts", {}, token),
+          apiRequest<AdminConnectionRecord[]>("/api/admin/network/connections", {}, token),
+          apiRequest<AdminFollowRecord[]>("/api/admin/network/follows", {}, token),
+          apiRequest<AdminMentorGroupRecord[]>("/api/admin/network/mentor-groups", {}, token),
+          apiRequest<AdminLiveSessionRecord[]>("/api/admin/network/live-sessions", {}, token),
+          apiRequest<AdminChallengeRecord[]>("/api/admin/network/challenges", {}, token)
         ]);
 
         setPendingMentors(mentorData);
@@ -186,6 +229,13 @@ export default function DashboardPage() {
         setComplaints(complaintData);
         setCollaborateApplications(collaborateData);
         setManualPayments(manualPaymentData);
+        setNetworkOverview(networkOverviewData);
+        setNetworkPosts(networkPostsData);
+        setNetworkConnections(networkConnectionsData);
+        setNetworkFollows(networkFollowsData);
+        setNetworkGroups(networkGroupsData);
+        setNetworkLiveSessions(networkLiveSessionsData);
+        setNetworkChallenges(networkChallengesData);
         setChatConversations(
           chatConversationData.filter((item) => item.counterpart?.role === "mentor")
         );
@@ -202,6 +252,13 @@ export default function DashboardPage() {
               complaints: complaintData,
               collaborateApplications: collaborateData,
               manualPayments: manualPaymentData,
+              networkOverview: networkOverviewData,
+              networkPosts: networkPostsData,
+              networkConnections: networkConnectionsData,
+              networkFollows: networkFollowsData,
+              networkGroups: networkGroupsData,
+              networkLiveSessions: networkLiveSessionsData,
+              networkChallenges: networkChallengesData,
               chatConversations: chatConversationData.filter((item) => item.counterpart?.role === "mentor")
             })
           );
@@ -395,6 +452,61 @@ export default function DashboardPage() {
       setError(err.message || "Failed to open chat.");
     } finally {
       setLoadingChat(false);
+    }
+  }
+
+  async function removePost(postId: string) {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/api/admin/network/posts/${postId}`, { method: "DELETE" }, token);
+      setNetworkPosts((prev) => prev.filter((item) => item._id !== postId));
+      setMessage("Post removed.");
+    } catch (err: any) {
+      setError(err.message || "Failed to remove post.");
+    }
+  }
+
+  async function toggleGroup(groupId: string) {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/api/admin/network/mentor-groups/${groupId}/toggle`, { method: "PATCH" }, token);
+      const refreshed = await apiRequest<AdminMentorGroupRecord[]>("/api/admin/network/mentor-groups", {}, token);
+      setNetworkGroups(refreshed);
+      setMessage("Group status updated.");
+    } catch (err: any) {
+      setError(err.message || "Failed to update group.");
+    }
+  }
+
+  async function toggleLiveSession(liveSessionId: string) {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/api/admin/network/live-sessions/${liveSessionId}/toggle`, { method: "PATCH" }, token);
+      const refreshed = await apiRequest<AdminLiveSessionRecord[]>("/api/admin/network/live-sessions", {}, token);
+      setNetworkLiveSessions(refreshed);
+      setMessage("Live session status updated.");
+    } catch (err: any) {
+      setError(err.message || "Failed to update live session.");
+    }
+  }
+
+  async function toggleChallenge(challengeId: string) {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/api/admin/network/challenges/${challengeId}/toggle`, { method: "PATCH" }, token);
+      const refreshed = await apiRequest<AdminChallengeRecord[]>("/api/admin/network/challenges", {}, token);
+      setNetworkChallenges(refreshed);
+      setMessage("Challenge status updated.");
+    } catch (err: any) {
+      setError(err.message || "Failed to update challenge.");
     }
   }
 
@@ -821,6 +933,177 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+        </section>
+
+        <section id="network" className="card section-card" style={sectionDisplay("network")}>
+          <h2>Network & Social</h2>
+          <p className="muted">Moderate posts and control group/live/challenge visibility.</p>
+
+          {networkOverview ? (
+            <div className="grid kpi">
+              <div className="kpi"><h3>Total Posts</h3><p>{networkOverview.posts.total}</p></div>
+              <div className="kpi"><h3>Public Posts</h3><p>{networkOverview.posts.public}</p></div>
+              <div className="kpi"><h3>Pending Connections</h3><p>{networkOverview.network.pendingConnections}</p></div>
+              <div className="kpi"><h3>Accepted Connections</h3><p>{networkOverview.network.acceptedConnections}</p></div>
+              <div className="kpi"><h3>Total Follows</h3><p>{networkOverview.network.follows}</p></div>
+              <div className="kpi"><h3>Active Groups</h3><p>{networkOverview.communities.activeGroups}</p></div>
+              <div className="kpi"><h3>Active Challenges</h3><p>{networkOverview.communities.activeChallenges}</p></div>
+              <div className="kpi"><h3>Upcoming Lives</h3><p>{networkOverview.communities.upcomingLiveSessions}</p></div>
+            </div>
+          ) : null}
+
+          <h3>Recent Posts</h3>
+          {networkPosts.length === 0 ? (
+            <p className="muted">No posts found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkPosts.slice(0, 25).map((post) => (
+                <article key={post._id} className="row-item">
+                  <div>
+                    <strong>{post.authorId?.name || "User"}</strong>
+                    <p className="muted">
+                      {post.authorId?.email || "-"} | {post.postType} | {post.visibility} | {new Date(post.createdAt).toLocaleString()}
+                    </p>
+                    <p>{post.content}</p>
+                    <p className="muted">
+                      Likes {post.likeCount || 0} | Comments {post.commentCount || 0} | Shares {post.shareCount || 0}
+                    </p>
+                  </div>
+                  <button className="button danger" onClick={() => removePost(post._id)}>
+                    Remove Post
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          <h3>Mentor Groups</h3>
+          {networkGroups.length === 0 ? (
+            <p className="muted">No mentor groups found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkGroups.slice(0, 20).map((group) => (
+                <article key={group._id} className="row-item">
+                  <div>
+                    <strong>{group.name}</strong>
+                    <p className="muted">
+                      Mentor: {group.mentorId?.name || "-"} | Domain: {group.domain || "-"} | Members: {group.memberIds?.length || 0}
+                    </p>
+                    <p className="muted">{group.schedule || "Weekly sessions"}</p>
+                  </div>
+                  <button className={`button ${group.isActive ? "danger" : "primary"}`} onClick={() => toggleGroup(group._id)}>
+                    {group.isActive ? "Disable" : "Activate"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          <h3>Live Sessions</h3>
+          {networkLiveSessions.length === 0 ? (
+            <p className="muted">No live sessions found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkLiveSessions.slice(0, 20).map((live) => (
+                <article key={live._id} className="row-item">
+                  <div>
+                    <strong>{live.title}</strong>
+                    <p className="muted">
+                      Mentor: {live.mentorId?.name || "-"} | {new Date(live.startsAt).toLocaleString()}
+                    </p>
+                    <p className="muted">Status: {live.isCancelled ? "Cancelled" : "Active"}</p>
+                  </div>
+                  <button
+                    className={`button ${live.isCancelled ? "primary" : "danger"}`}
+                    onClick={() => toggleLiveSession(live._id)}
+                  >
+                    {live.isCancelled ? "Reopen" : "Cancel"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          <h3>Community Challenges</h3>
+          {networkChallenges.length === 0 ? (
+            <p className="muted">No challenges found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkChallenges.slice(0, 20).map((challenge) => (
+                <article key={challenge._id} className="row-item">
+                  <div>
+                    <strong>{challenge.title}</strong>
+                    <p className="muted">
+                      Domain: {challenge.domain || "-"} | Deadline: {new Date(challenge.deadline).toLocaleDateString()} | Participants: {challenge.participants?.length || 0}
+                    </p>
+                    <p className="muted">Status: {challenge.isActive ? "Active" : "Disabled"}</p>
+                  </div>
+                  <button
+                    className={`button ${challenge.isActive ? "danger" : "primary"}`}
+                    onClick={() => toggleChallenge(challenge._id)}
+                  >
+                    {challenge.isActive ? "Disable" : "Activate"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          <h3>Recent Connections</h3>
+          {networkConnections.length === 0 ? (
+            <p className="muted">No connection records found.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Requester</th>
+                    <th>Recipient</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {networkConnections.slice(0, 40).map((item) => (
+                    <tr key={item._id}>
+                      <td>{item.requesterId?.name || "-"}</td>
+                      <td>{item.recipientId?.name || "-"}</td>
+                      <td>{item.relationshipType}</td>
+                      <td>{item.status}</td>
+                      <td>{new Date(item.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h3>Recent Follows</h3>
+          {networkFollows.length === 0 ? (
+            <p className="muted">No follow records found.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Follower</th>
+                    <th>Following</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {networkFollows.slice(0, 40).map((item) => (
+                    <tr key={item._id}>
+                      <td>{item.followerId?.name || "-"}</td>
+                      <td>{item.followingId?.name || "-"}</td>
+                      <td>{new Date(item.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section id="students" className="card section-card" style={sectionDisplay("students")}>

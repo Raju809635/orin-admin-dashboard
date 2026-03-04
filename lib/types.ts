@@ -173,3 +173,85 @@ export type ChatMessageRecord = {
   createdAt: string;
   updatedAt?: string;
 };
+
+export type NetworkAdminOverview = {
+  posts: {
+    total: number;
+    public: number;
+    private: number;
+  };
+  network: {
+    pendingConnections: number;
+    acceptedConnections: number;
+    follows: number;
+  };
+  communities: {
+    activeGroups: number;
+    activeChallenges: number;
+    upcomingLiveSessions: number;
+  };
+};
+
+export type AdminNetworkPost = {
+  _id: string;
+  content: string;
+  postType: string;
+  visibility: "public" | "connections" | "private";
+  likeCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  createdAt: string;
+  authorId?: {
+    _id: string;
+    name: string;
+    email: string;
+    role: Role;
+  };
+};
+
+export type AdminConnectionRecord = {
+  _id: string;
+  status: "pending" | "accepted" | "rejected" | "blocked";
+  relationshipType: "student_student" | "student_mentor" | "student_recruiter";
+  createdAt: string;
+  requesterId?: { _id: string; name: string; email: string; role: Role };
+  recipientId?: { _id: string; name: string; email: string; role: Role };
+};
+
+export type AdminFollowRecord = {
+  _id: string;
+  createdAt: string;
+  followerId?: { _id: string; name: string; email: string; role: Role };
+  followingId?: { _id: string; name: string; email: string; role: Role };
+};
+
+export type AdminMentorGroupRecord = {
+  _id: string;
+  name: string;
+  domain?: string;
+  description?: string;
+  maxStudents?: number;
+  memberIds?: string[];
+  schedule?: string;
+  isActive: boolean;
+  mentorId?: { _id: string; name: string; email: string; role: Role; approvalStatus?: string };
+};
+
+export type AdminLiveSessionRecord = {
+  _id: string;
+  title: string;
+  topic?: string;
+  startsAt: string;
+  isCancelled: boolean;
+  meetingLink?: string;
+  mentorId?: { _id: string; name: string; email: string; role: Role };
+};
+
+export type AdminChallengeRecord = {
+  _id: string;
+  title: string;
+  domain?: string;
+  deadline: string;
+  isActive: boolean;
+  participants?: string[];
+};
