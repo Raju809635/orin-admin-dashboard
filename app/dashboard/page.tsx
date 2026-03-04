@@ -36,6 +36,12 @@ type DirectMentorMessageForm = {
   message: string;
 };
 
+type PasswordForm = {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
 const defaultNotification: NotificationForm = {
   title: "",
   message: "",
@@ -53,7 +59,8 @@ const sectionList = [
   { id: "chats", label: "Mentor Chats" },
   { id: "network", label: "Network & Social" },
   { id: "students", label: "Students" },
-  { id: "notifications", label: "Notifications" }
+  { id: "notifications", label: "Notifications" },
+  { id: "security", label: "Security" }
 ] as const;
 
 const DASHBOARD_CACHE_KEY = "orin_admin_dashboard_cache_v1";
@@ -86,12 +93,18 @@ export default function DashboardPage() {
   const [networkLiveSessions, setNetworkLiveSessions] = useState<AdminLiveSessionRecord[]>([]);
   const [networkChallenges, setNetworkChallenges] = useState<AdminChallengeRecord[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
+  const [passwordForm, setPasswordForm] = useState<PasswordForm>({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
   const [directMessageForm, setDirectMessageForm] = useState<DirectMentorMessageForm>({
     title: "",
     message: ""
   });
   const [complaintReplyById, setComplaintReplyById] = useState<Record<string, string>>({});
   const [sendingNotification, setSendingNotification] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [sendingDirect, setSendingDirect] = useState(false);
   const [chatConversations, setChatConversations] = useState<ChatConversation[]>([]);
   const [activeChatUserId, setActiveChatUserId] = useState<string>("");
@@ -378,6 +391,52 @@ export default function DashboardPage() {
       setMessage("Complaint updated.");
     } catch (err: any) {
       setError(err.message || "Failed to update complaint");
+    }
+  }
+
+  async function changeAdminPassword(event: FormEvent) {
+    event.preventDefault();
+    if (!token) return;
+    setError("");
+    setMessage("");
+
+    if (passwordForm.newPassword.length < 8) {
+      setError("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError("New password and confirm password do not match.");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      await apiRequest<{ message: string }>(
+        "/api/auth/change-password",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            currentPassword: passwordForm.currentPassword,
+            newPassword: passwordForm.newPassword
+          })
+        },
+        token
+      );
+
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: ""
+      });
+
+      setMessage("Password changed successfully. Please login again.");
+      clearSession();
+      router.replace("/login");
+    } catch (err: any) {
+      setError(err.message || "Failed to change password.");
+    } finally {
+      setChangingPassword(false);
     }
   }
 
@@ -1205,6 +1264,43 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section id="security" className="card section-card" style={sectionDisplay("security")}>
+          <h2>Security</h2>
+          <p className="muted">Change admin password and secure account access.</p>
+          <form onSubmit={changeAdminPassword} className="grid form-block">
+            <input
+              className="input"
+              type="password"
+              placeholder="Current password"
+              value={passwordForm.currentPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+              autoComplete="current-password"
+              required
+            />
+            <input
+              className="input"
+              type="password"
+              placeholder="New password"
+              value={passwordForm.newPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+              autoComplete="new-password"
+              required
+            />
+            <input
+              className="input"
+              type="password"
+              placeholder="Confirm new password"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+              autoComplete="new-password"
+              required
+            />
+            <button className="button primary" type="submit" disabled={changingPassword}>
+              {changingPassword ? "Updating..." : "Change Password"}
+            </button>
+          </form>
         </section>
       </section>
     </main>
