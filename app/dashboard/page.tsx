@@ -57,7 +57,10 @@ const sectionList = [
   { id: "collaborations", label: "Collaborations" },
   { id: "mentors", label: "Mentors" },
   { id: "chats", label: "Mentor Chats" },
-  { id: "network", label: "Network & Social" },
+  { id: "network", label: "Network Feed" },
+  { id: "mentorGroups", label: "Mentor Groups" },
+  { id: "liveSessions", label: "Live Sessions" },
+  { id: "communityChallenges", label: "Community Challenges" },
   { id: "students", label: "Students" },
   { id: "notifications", label: "Notifications" },
   { id: "security", label: "Security" }
@@ -995,8 +998,8 @@ export default function DashboardPage() {
         </section>
 
         <section id="network" className="card section-card" style={sectionDisplay("network")}>
-          <h2>Network & Social</h2>
-          <p className="muted">Moderate posts and control group/live/challenge visibility.</p>
+          <h2>Network Feed</h2>
+          <p className="muted">Moderate posts, follows, and connection activity.</p>
 
           {networkOverview ? (
             <div className="grid kpi">
@@ -1005,9 +1008,6 @@ export default function DashboardPage() {
               <div className="kpi"><h3>Pending Connections</h3><p>{networkOverview.network.pendingConnections}</p></div>
               <div className="kpi"><h3>Accepted Connections</h3><p>{networkOverview.network.acceptedConnections}</p></div>
               <div className="kpi"><h3>Total Follows</h3><p>{networkOverview.network.follows}</p></div>
-              <div className="kpi"><h3>Active Groups</h3><p>{networkOverview.communities.activeGroups}</p></div>
-              <div className="kpi"><h3>Active Challenges</h3><p>{networkOverview.communities.activeChallenges}</p></div>
-              <div className="kpi"><h3>Upcoming Lives</h3><p>{networkOverview.communities.upcomingLiveSessions}</p></div>
             </div>
           ) : null}
 
@@ -1030,78 +1030,6 @@ export default function DashboardPage() {
                   </div>
                   <button className="button danger" onClick={() => removePost(post._id)}>
                     Remove Post
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-
-          <h3>Mentor Groups</h3>
-          {networkGroups.length === 0 ? (
-            <p className="muted">No mentor groups found.</p>
-          ) : (
-            <div className="list-stack">
-              {networkGroups.slice(0, 20).map((group) => (
-                <article key={group._id} className="row-item">
-                  <div>
-                    <strong>{group.name}</strong>
-                    <p className="muted">
-                      Mentor: {group.mentorId?.name || "-"} | Domain: {group.domain || "-"} | Members: {group.memberIds?.length || 0}
-                    </p>
-                    <p className="muted">{group.schedule || "Weekly sessions"}</p>
-                  </div>
-                  <button className={`button ${group.isActive ? "danger" : "primary"}`} onClick={() => toggleGroup(group._id)}>
-                    {group.isActive ? "Disable" : "Activate"}
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-
-          <h3>Live Sessions</h3>
-          {networkLiveSessions.length === 0 ? (
-            <p className="muted">No live sessions found.</p>
-          ) : (
-            <div className="list-stack">
-              {networkLiveSessions.slice(0, 20).map((live) => (
-                <article key={live._id} className="row-item">
-                  <div>
-                    <strong>{live.title}</strong>
-                    <p className="muted">
-                      Mentor: {live.mentorId?.name || "-"} | {new Date(live.startsAt).toLocaleString()}
-                    </p>
-                    <p className="muted">Status: {live.isCancelled ? "Cancelled" : "Active"}</p>
-                  </div>
-                  <button
-                    className={`button ${live.isCancelled ? "primary" : "danger"}`}
-                    onClick={() => toggleLiveSession(live._id)}
-                  >
-                    {live.isCancelled ? "Reopen" : "Cancel"}
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-
-          <h3>Community Challenges</h3>
-          {networkChallenges.length === 0 ? (
-            <p className="muted">No challenges found.</p>
-          ) : (
-            <div className="list-stack">
-              {networkChallenges.slice(0, 20).map((challenge) => (
-                <article key={challenge._id} className="row-item">
-                  <div>
-                    <strong>{challenge.title}</strong>
-                    <p className="muted">
-                      Domain: {challenge.domain || "-"} | Deadline: {new Date(challenge.deadline).toLocaleDateString()} | Participants: {challenge.participants?.length || 0}
-                    </p>
-                    <p className="muted">Status: {challenge.isActive ? "Active" : "Disabled"}</p>
-                  </div>
-                  <button
-                    className={`button ${challenge.isActive ? "danger" : "primary"}`}
-                    onClick={() => toggleChallenge(challenge._id)}
-                  >
-                    {challenge.isActive ? "Disable" : "Activate"}
                   </button>
                 </article>
               ))}
@@ -1161,6 +1089,106 @@ export default function DashboardPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </section>
+
+        <section id="mentorGroups" className="card section-card" style={sectionDisplay("mentorGroups")}>
+          <h2>Mentor Groups</h2>
+          <p className="muted">Review group visibility, ownership, and member volume.</p>
+          {networkOverview ? (
+            <div className="grid kpi">
+              <div className="kpi"><h3>Active Groups</h3><p>{networkOverview.communities.activeGroups}</p></div>
+              <div className="kpi"><h3>Total Groups Loaded</h3><p>{networkGroups.length}</p></div>
+            </div>
+          ) : null}
+          {networkGroups.length === 0 ? (
+            <p className="muted">No mentor groups found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkGroups.slice(0, 20).map((group) => (
+                <article key={group._id} className="row-item">
+                  <div>
+                    <strong>{group.name}</strong>
+                    <p className="muted">
+                      Mentor: {group.mentorId?.name || "-"} | Domain: {group.domain || "-"} | Members: {group.memberIds?.length || 0}
+                    </p>
+                    <p className="muted">{group.schedule || "Weekly sessions"}</p>
+                    <p className="muted">Status: {group.isActive ? "Active" : "Disabled"}</p>
+                  </div>
+                  <button className={`button ${group.isActive ? "danger" : "primary"}`} onClick={() => toggleGroup(group._id)}>
+                    {group.isActive ? "Disable" : "Activate"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section id="liveSessions" className="card section-card" style={sectionDisplay("liveSessions")}>
+          <h2>Live Sessions</h2>
+          <p className="muted">Monitor upcoming mentor live sessions and control visibility.</p>
+          {networkOverview ? (
+            <div className="grid kpi">
+              <div className="kpi"><h3>Upcoming Lives</h3><p>{networkOverview.communities.upcomingLiveSessions}</p></div>
+              <div className="kpi"><h3>Total Lives Loaded</h3><p>{networkLiveSessions.length}</p></div>
+            </div>
+          ) : null}
+          {networkLiveSessions.length === 0 ? (
+            <p className="muted">No live sessions found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkLiveSessions.slice(0, 20).map((live) => (
+                <article key={live._id} className="row-item">
+                  <div>
+                    <strong>{live.title}</strong>
+                    <p className="muted">
+                      Mentor: {live.mentorId?.name || "-"} | {new Date(live.startsAt).toLocaleString()}
+                    </p>
+                    <p className="muted">Status: {live.isCancelled ? "Cancelled" : "Active"}</p>
+                  </div>
+                  <button
+                    className={`button ${live.isCancelled ? "primary" : "danger"}`}
+                    onClick={() => toggleLiveSession(live._id)}
+                  >
+                    {live.isCancelled ? "Reopen" : "Cancel"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section id="communityChallenges" className="card section-card" style={sectionDisplay("communityChallenges")}>
+          <h2>Community Challenges</h2>
+          <p className="muted">Activate or disable community challenge tracks from one place.</p>
+          {networkOverview ? (
+            <div className="grid kpi">
+              <div className="kpi"><h3>Active Challenges</h3><p>{networkOverview.communities.activeChallenges}</p></div>
+              <div className="kpi"><h3>Total Challenges Loaded</h3><p>{networkChallenges.length}</p></div>
+            </div>
+          ) : null}
+          {networkChallenges.length === 0 ? (
+            <p className="muted">No challenges found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkChallenges.slice(0, 20).map((challenge) => (
+                <article key={challenge._id} className="row-item">
+                  <div>
+                    <strong>{challenge.title}</strong>
+                    <p className="muted">
+                      Domain: {challenge.domain || "-"} | Deadline: {new Date(challenge.deadline).toLocaleDateString()} | Participants: {challenge.participants?.length || 0}
+                    </p>
+                    <p className="muted">Status: {challenge.isActive ? "Active" : "Disabled"}</p>
+                  </div>
+                  <button
+                    className={`button ${challenge.isActive ? "danger" : "primary"}`}
+                    onClick={() => toggleChallenge(challenge._id)}
+                  >
+                    {challenge.isActive ? "Disable" : "Activate"}
+                  </button>
+                </article>
+              ))}
             </div>
           )}
         </section>
