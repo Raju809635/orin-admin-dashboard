@@ -558,6 +558,23 @@ export default function DashboardPage() {
     }
   }
 
+  async function reviewLiveSession(liveSessionId: string, action: "approve" | "reject") {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/api/admin/network/live-sessions/${liveSessionId}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ action })
+      }, token);
+      const refreshed = await apiRequest<AdminLiveSessionRecord[]>("/api/admin/network/live-sessions", {}, token);
+      setNetworkLiveSessions(refreshed);
+      setMessage(action === "approve" ? "Live session approved." : "Live session rejected.");
+    } catch (err: any) {
+      setError(err.message || "Failed to review live session.");
+    }
+  }
+
   async function toggleChallenge(challengeId: string) {
     if (!token) return;
     setError("");
@@ -1145,14 +1162,30 @@ export default function DashboardPage() {
                     <p className="muted">
                       Mentor: {live.mentorId?.name || "-"} | {new Date(live.startsAt).toLocaleString()}
                     </p>
+                    <p className="muted">
+                      Approval: {live.approvalStatus || "pending"} | {live.sessionMode === "paid" ? `INR ${live.price || 0}` : "Free"} | Seats: {live.bookingStats?.totalBookings || 0}/{live.maxParticipants || 0}
+                    </p>
                     <p className="muted">Status: {live.isCancelled ? "Cancelled" : "Active"}</p>
+                    {live.adminReviewNote ? <p className="muted">Admin note: {live.adminReviewNote}</p> : null}
                   </div>
-                  <button
-                    className={`button ${live.isCancelled ? "primary" : "danger"}`}
-                    onClick={() => toggleLiveSession(live._id)}
-                  >
-                    {live.isCancelled ? "Reopen" : "Cancel"}
-                  </button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {live.approvalStatus !== "approved" ? (
+                      <button className="button primary" onClick={() => reviewLiveSession(live._id, "approve")}>
+                        Approve
+                      </button>
+                    ) : null}
+                    {live.approvalStatus !== "rejected" ? (
+                      <button className="button secondary" onClick={() => reviewLiveSession(live._id, "reject")}>
+                        Reject
+                      </button>
+                    ) : null}
+                    <button
+                      className={`button ${live.isCancelled ? "primary" : "danger"}`}
+                      onClick={() => toggleLiveSession(live._id)}
+                    >
+                      {live.isCancelled ? "Reopen" : "Cancel"}
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>

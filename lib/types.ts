@@ -241,10 +241,24 @@ export type AdminLiveSessionRecord = {
   _id: string;
   title: string;
   topic?: string;
+  description?: string;
   startsAt: string;
+  durationMinutes?: number;
+  sessionMode?: "free" | "paid";
+  price?: number;
+  currency?: string;
+  maxParticipants?: number;
+  approvalStatus?: "pending" | "approved" | "rejected";
+  adminReviewNote?: string;
   isCancelled: boolean;
   meetingLink?: string;
+  reviewedBy?: { _id: string; name: string; email: string; role: Role };
   mentorId?: { _id: string; name: string; email: string; role: Role };
+  bookingStats?: {
+    totalBookings: number;
+    paidBookings: number;
+    pendingBookings: number;
+  };
 };
 
 export type AdminChallengeRecord = {
