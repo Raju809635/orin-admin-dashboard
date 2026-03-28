@@ -1,4 +1,4 @@
-export type Role = "student" | "mentor";
+export type Role = "student" | "mentor" | "admin";
 
 export type AuthUser = {
   id: string;
@@ -44,6 +44,9 @@ export type MentorProfileRecord = {
   sessionPrice?: number;
   about?: string;
   linkedInUrl?: string;
+  payoutUpiId?: string;
+  payoutQrCodeUrl?: string;
+  payoutPhoneNumber?: string;
   rating?: number;
   totalSessionsConducted?: number;
 };
@@ -133,6 +136,8 @@ export type ManualPaymentRecord = {
   transactionReference?: string;
   paymentStatus: "pending" | "waiting_verification" | "verified" | "rejected" | "paid";
   status: "pending" | "payment_pending" | "confirmed" | "approved" | "completed" | "cancelled" | "rejected";
+  platformFeeAmount?: number;
+  mentorPayoutAmount?: number;
   createdAt: string;
   studentId?: {
     _id: string;
@@ -144,6 +149,38 @@ export type ManualPaymentRecord = {
     name: string;
     email: string;
   };
+};
+
+export type SessionPayoutRecord = {
+  _id: string;
+  date: string;
+  time: string;
+  amount: number;
+  currency?: string;
+  paymentStatus: "pending" | "waiting_verification" | "verified" | "rejected" | "paid";
+  sessionStatus: "booked" | "confirmed" | "completed";
+  status: "pending" | "payment_pending" | "confirmed" | "approved" | "completed" | "cancelled" | "rejected";
+  platformFeeAmount: number;
+  mentorPayoutAmount: number;
+  payoutStatus: "not_ready" | "pending" | "paid" | "issue_reported";
+  mentorPayoutConfirmationStatus: "not_ready" | "pending" | "confirmed" | "issue_reported";
+  payoutPaidAt?: string | null;
+  payoutReference?: string;
+  payoutNote?: string;
+  mentorPayoutIssueNote?: string;
+  payoutEligible?: boolean;
+  hasMentorPaymentDetails?: boolean;
+  canAdminMarkPayoutPaid?: boolean;
+  studentId?: { _id: string; name: string; email: string };
+  mentorId?: { _id: string; name: string; email: string };
+  mentorPaymentDetails?: {
+    upiId?: string;
+    qrCodeUrl?: string;
+    phoneNumber?: string;
+    title?: string;
+    company?: string;
+  };
+  payoutPaidBy?: { _id: string; name: string; email: string; role: Role };
 };
 
 export type ChatUser = {
@@ -258,6 +295,35 @@ export type AdminLiveSessionRecord = {
     totalBookings: number;
     paidBookings: number;
     pendingBookings: number;
+  };
+};
+
+export type AdminSprintRecord = {
+  _id: string;
+  title: string;
+  domain?: string;
+  description?: string;
+  posterImageUrl?: string;
+  curriculumDocumentUrl?: string;
+  curriculumFileType?: string;
+  startDate: string;
+  endDate: string;
+  durationWeeks?: number;
+  totalLiveSessions?: number;
+  sessionMode?: "free" | "paid";
+  price?: number;
+  currency?: string;
+  minParticipants?: number;
+  maxParticipants?: number;
+  approvalStatus?: "pending" | "approved" | "rejected";
+  adminReviewNote?: string;
+  isCancelled: boolean;
+  reviewedBy?: { _id: string; name: string; email: string; role: Role };
+  mentorId?: { _id: string; name: string; email: string; role: Role };
+  enrollmentStats?: {
+    totalEnrollments: number;
+    paidEnrollments: number;
+    pendingEnrollments: number;
   };
 };
 

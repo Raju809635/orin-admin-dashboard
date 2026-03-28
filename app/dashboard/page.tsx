@@ -11,6 +11,7 @@ import {
   AdminLiveSessionRecord,
   AdminMentorGroupRecord,
   AdminNetworkPost,
+  AdminSprintRecord,
   ChatConversation,
   ChatMessageRecord,
   CollaborateApplication,
@@ -21,6 +22,7 @@ import {
   MentorProfileRecord,
   NetworkAdminOverview,
   NotificationRecord,
+  SessionPayoutRecord,
   Student
 } from "../../lib/types";
 
@@ -60,6 +62,7 @@ const sectionList = [
   { id: "network", label: "Network Feed" },
   { id: "mentorGroups", label: "Mentor Groups" },
   { id: "liveSessions", label: "Live Sessions" },
+  { id: "sprints", label: "Sprints" },
   { id: "communityChallenges", label: "Community Challenges" },
   { id: "students", label: "Students" },
   { id: "notifications", label: "Notifications" },
@@ -88,12 +91,14 @@ export default function DashboardPage() {
   const [collaborateApplications, setCollaborateApplications] = useState<CollaborateApplication[]>([]);
   const [collaborateNotesById, setCollaborateNotesById] = useState<Record<string, string>>({});
   const [manualPayments, setManualPayments] = useState<ManualPaymentRecord[]>([]);
+  const [sessionPayouts, setSessionPayouts] = useState<SessionPayoutRecord[]>([]);
   const [networkOverview, setNetworkOverview] = useState<NetworkAdminOverview | null>(null);
   const [networkPosts, setNetworkPosts] = useState<AdminNetworkPost[]>([]);
   const [networkConnections, setNetworkConnections] = useState<AdminConnectionRecord[]>([]);
   const [networkFollows, setNetworkFollows] = useState<AdminFollowRecord[]>([]);
   const [networkGroups, setNetworkGroups] = useState<AdminMentorGroupRecord[]>([]);
   const [networkLiveSessions, setNetworkLiveSessions] = useState<AdminLiveSessionRecord[]>([]);
+  const [networkSprints, setNetworkSprints] = useState<AdminSprintRecord[]>([]);
   const [networkChallenges, setNetworkChallenges] = useState<AdminChallengeRecord[]>([]);
   const [notificationForm, setNotificationForm] = useState(defaultNotification);
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({
@@ -137,12 +142,14 @@ export default function DashboardPage() {
           complaints: ComplaintRecord[];
           collaborateApplications: CollaborateApplication[];
           manualPayments: ManualPaymentRecord[];
+          sessionPayouts: SessionPayoutRecord[];
           networkOverview: NetworkAdminOverview | null;
           networkPosts: AdminNetworkPost[];
           networkConnections: AdminConnectionRecord[];
           networkFollows: AdminFollowRecord[];
           networkGroups: AdminMentorGroupRecord[];
           networkLiveSessions: AdminLiveSessionRecord[];
+          networkSprints: AdminSprintRecord[];
           networkChallenges: AdminChallengeRecord[];
           chatConversations: ChatConversation[];
         };
@@ -155,12 +162,14 @@ export default function DashboardPage() {
         setComplaints(cached.complaints || []);
         setCollaborateApplications(cached.collaborateApplications || []);
         setManualPayments(cached.manualPayments || []);
+        setSessionPayouts(cached.sessionPayouts || []);
         setNetworkOverview(cached.networkOverview || null);
         setNetworkPosts(cached.networkPosts || []);
         setNetworkConnections(cached.networkConnections || []);
         setNetworkFollows(cached.networkFollows || []);
         setNetworkGroups(cached.networkGroups || []);
         setNetworkLiveSessions(cached.networkLiveSessions || []);
+        setNetworkSprints(cached.networkSprints || []);
         setNetworkChallenges(cached.networkChallenges || []);
         setChatConversations(cached.chatConversations || []);
         setLoading(false);
@@ -210,6 +219,7 @@ export default function DashboardPage() {
           complaintData,
           collaborateData,
           manualPaymentData,
+          sessionPayoutData,
           chatConversationData,
           networkOverviewData,
           networkPostsData,
@@ -217,6 +227,7 @@ export default function DashboardPage() {
           networkFollowsData,
           networkGroupsData,
           networkLiveSessionsData,
+          networkSprintsData,
           networkChallengesData
         ] = await Promise.all([
           apiRequest<Mentor[]>("/api/admin/pending-mentors", {}, token),
@@ -227,6 +238,7 @@ export default function DashboardPage() {
           apiRequest<ComplaintRecord[]>("/api/complaints/admin", {}, token),
           apiRequest<CollaborateApplication[]>("/api/admin/collaborate/applications", {}, token),
           apiRequest<ManualPaymentRecord[]>("/api/sessions/admin/manual-payments", {}, token),
+          apiRequest<SessionPayoutRecord[]>("/api/sessions/admin/payouts", {}, token),
           apiRequest<ChatConversation[]>("/api/chat/conversations", {}, token),
           apiRequest<NetworkAdminOverview>("/api/admin/network/overview", {}, token),
           apiRequest<AdminNetworkPost[]>("/api/admin/network/posts", {}, token),
@@ -234,6 +246,7 @@ export default function DashboardPage() {
           apiRequest<AdminFollowRecord[]>("/api/admin/network/follows", {}, token),
           apiRequest<AdminMentorGroupRecord[]>("/api/admin/network/mentor-groups", {}, token),
           apiRequest<AdminLiveSessionRecord[]>("/api/admin/network/live-sessions", {}, token),
+          apiRequest<AdminSprintRecord[]>("/api/admin/network/sprints", {}, token),
           apiRequest<AdminChallengeRecord[]>("/api/admin/network/challenges", {}, token)
         ]);
 
@@ -245,12 +258,14 @@ export default function DashboardPage() {
         setComplaints(complaintData);
         setCollaborateApplications(collaborateData);
         setManualPayments(manualPaymentData);
+        setSessionPayouts(sessionPayoutData);
         setNetworkOverview(networkOverviewData);
         setNetworkPosts(networkPostsData);
         setNetworkConnections(networkConnectionsData);
         setNetworkFollows(networkFollowsData);
         setNetworkGroups(networkGroupsData);
         setNetworkLiveSessions(networkLiveSessionsData);
+        setNetworkSprints(networkSprintsData);
         setNetworkChallenges(networkChallengesData);
         setChatConversations(
           chatConversationData.filter((item) => item.counterpart?.role === "mentor")
@@ -268,12 +283,14 @@ export default function DashboardPage() {
               complaints: complaintData,
               collaborateApplications: collaborateData,
               manualPayments: manualPaymentData,
+              sessionPayouts: sessionPayoutData,
               networkOverview: networkOverviewData,
               networkPosts: networkPostsData,
               networkConnections: networkConnectionsData,
               networkFollows: networkFollowsData,
               networkGroups: networkGroupsData,
               networkLiveSessions: networkLiveSessionsData,
+              networkSprints: networkSprintsData,
               networkChallenges: networkChallengesData,
               chatConversations: chatConversationData.filter((item) => item.counterpart?.role === "mentor")
             })
@@ -471,6 +488,32 @@ export default function DashboardPage() {
     }
   }
 
+  async function markMentorPayoutPaid(sessionId: string) {
+    if (!token) return;
+    setError("");
+    setMessage("");
+
+    try {
+      const reference = window.prompt("Payout reference (UPI ref / txn id)", "") || "";
+      const note = window.prompt("Payout note", "Paid manually via UPI") || "";
+
+      await apiRequest<{ message: string }>(
+        `/api/sessions/admin/payouts/${sessionId}/pay`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ reference, note })
+        },
+        token
+      );
+
+      const refreshed = await apiRequest<SessionPayoutRecord[]>("/api/sessions/admin/payouts", {}, token);
+      setSessionPayouts(refreshed);
+      setMessage("Mentor payout marked as paid.");
+    } catch (err: any) {
+      setError(err.message || "Failed to mark payout as paid");
+    }
+  }
+
   async function reviewCollaborateApplication(applicationId: string, action: "approve" | "reject") {
     if (!token) return;
     setError("");
@@ -572,6 +615,37 @@ export default function DashboardPage() {
       setMessage(action === "approve" ? "Live session approved." : "Live session rejected.");
     } catch (err: any) {
       setError(err.message || "Failed to review live session.");
+    }
+  }
+
+  async function toggleSprint(sprintId: string) {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/api/admin/network/sprints/${sprintId}/toggle`, { method: "PATCH" }, token);
+      const refreshed = await apiRequest<AdminSprintRecord[]>("/api/admin/network/sprints", {}, token);
+      setNetworkSprints(refreshed);
+      setMessage("Sprint status updated.");
+    } catch (err: any) {
+      setError(err.message || "Failed to update sprint.");
+    }
+  }
+
+  async function reviewSprint(sprintId: string, action: "approve" | "reject") {
+    if (!token) return;
+    setError("");
+    setMessage("");
+    try {
+      await apiRequest(`/api/admin/network/sprints/${sprintId}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ action })
+      }, token);
+      const refreshed = await apiRequest<AdminSprintRecord[]>("/api/admin/network/sprints", {}, token);
+      setNetworkSprints(refreshed);
+      setMessage(action === "approve" ? "Sprint approved." : "Sprint rejected.");
+    } catch (err: any) {
+      setError(err.message || "Failed to review sprint.");
     }
   }
 
@@ -717,7 +791,8 @@ export default function DashboardPage() {
         </section>
 
         <section id="payments" className="card section-card" style={sectionDisplay("payments")}>
-          <h2>Payment Verifications</h2>
+          <h2>Payments & Payouts</h2>
+          <h3>Manual Payment Verifications</h3>
           {manualPayments.length === 0 ? (
             <p className="muted">No pending manual payments.</p>
           ) : (
@@ -781,6 +856,100 @@ export default function DashboardPage() {
                         </button>
                         <button className="button danger" onClick={() => reviewManualPayment(item._id, "reject")}>
                           Reject
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h3 style={{ marginTop: 24 }}>Mentor Payout Queue</h3>
+          {sessionPayouts.length === 0 ? (
+            <p className="muted">No paid session payouts tracked yet.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Session</th>
+                    <th>Student / Mentor</th>
+                    <th>Financials</th>
+                    <th>Payout Setup</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessionPayouts.map((item) => (
+                    <tr key={item._id}>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <strong>
+                            {item.date} {item.time}
+                          </strong>
+                          <span className="muted">
+                            Session: {item.sessionStatus} | Payment: {item.paymentStatus}
+                          </span>
+                          <span className="muted">
+                            Eligible: {item.payoutEligible ? "Yes" : "No"}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span>
+                            <strong>Student:</strong> {item.studentId?.name || "-"}
+                          </span>
+                          <span className="muted">{item.studentId?.email || "-"}</span>
+                          <span>
+                            <strong>Mentor:</strong> {item.mentorId?.name || "-"}
+                          </span>
+                          <span className="muted">{item.mentorId?.email || "-"}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span>Total: {(item.currency || "INR")} {item.amount}</span>
+                          <span>ORIN 30%: {(item.currency || "INR")} {item.platformFeeAmount}</span>
+                          <span>Mentor 70%: {(item.currency || "INR")} {item.mentorPayoutAmount}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span>UPI: {item.mentorPaymentDetails?.upiId || "-"}</span>
+                          <span>Phone: {item.mentorPaymentDetails?.phoneNumber || "-"}</span>
+                          {item.mentorPaymentDetails?.qrCodeUrl ? (
+                            <a href={item.mentorPaymentDetails.qrCodeUrl} target="_blank" rel="noreferrer">
+                              Open QR
+                            </a>
+                          ) : (
+                            <span className="muted">No QR uploaded</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span>Payout: {item.payoutStatus}</span>
+                          <span>Mentor confirm: {item.mentorPayoutConfirmationStatus}</span>
+                          {item.payoutPaidAt ? (
+                            <span className="muted">Paid at: {new Date(item.payoutPaidAt).toLocaleString()}</span>
+                          ) : null}
+                          {item.payoutReference ? <span className="muted">Ref: {item.payoutReference}</span> : null}
+                          {item.payoutNote ? <span className="muted">Note: {item.payoutNote}</span> : null}
+                          {item.mentorPayoutIssueNote ? (
+                            <span className="muted">Issue: {item.mentorPayoutIssueNote}</span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="inline-actions">
+                        <button
+                          className="button primary"
+                          onClick={() => markMentorPayoutPaid(item._id)}
+                          disabled={!item.canAdminMarkPayoutPaid}
+                        >
+                          Mark Paid
                         </button>
                       </td>
                     </tr>
@@ -1184,6 +1353,55 @@ export default function DashboardPage() {
                       onClick={() => toggleLiveSession(live._id)}
                     >
                       {live.isCancelled ? "Reopen" : "Cancel"}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section id="sprints" className="card section-card" style={sectionDisplay("sprints")}>
+          <h2>Sprints</h2>
+          <p className="muted">Review mentor-created cohort programs, curriculum uploads, pricing, and enrollment health.</p>
+          {networkSprints.length === 0 ? (
+            <p className="muted">No sprints found.</p>
+          ) : (
+            <div className="list-stack">
+              {networkSprints.slice(0, 20).map((sprint) => (
+                <article key={sprint._id} className="row-item">
+                  <div>
+                    <strong>{sprint.title}</strong>
+                    <p className="muted">
+                      Mentor: {sprint.mentorId?.name || "-"} | Domain: {sprint.domain || "-"}
+                    </p>
+                    <p className="muted">
+                      {new Date(sprint.startDate).toLocaleDateString()} - {new Date(sprint.endDate).toLocaleDateString()} | Weeks: {sprint.durationWeeks || 1} | Sessions: {sprint.totalLiveSessions || 1}
+                    </p>
+                    <p className="muted">
+                      {sprint.sessionMode === "paid" ? `INR ${sprint.price || 0}` : "Free"} | Seats: {sprint.enrollmentStats?.totalEnrollments || 0}/{sprint.maxParticipants || 0} | Min needed: {sprint.minParticipants || 1}
+                    </p>
+                    <p className="muted">
+                      Approval: {sprint.approvalStatus || "pending"} | Status: {sprint.isCancelled ? "Cancelled" : "Active"} | Curriculum: {sprint.curriculumDocumentUrl ? "Uploaded" : "Not uploaded"}
+                    </p>
+                    {sprint.adminReviewNote ? <p className="muted">Admin note: {sprint.adminReviewNote}</p> : null}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {sprint.approvalStatus !== "approved" ? (
+                      <button className="button primary" onClick={() => reviewSprint(sprint._id, "approve")}>
+                        Approve
+                      </button>
+                    ) : null}
+                    {sprint.approvalStatus !== "rejected" ? (
+                      <button className="button secondary" onClick={() => reviewSprint(sprint._id, "reject")}>
+                        Reject
+                      </button>
+                    ) : null}
+                    <button
+                      className={`button ${sprint.isCancelled ? "primary" : "danger"}`}
+                      onClick={() => toggleSprint(sprint._id)}
+                    >
+                      {sprint.isCancelled ? "Reopen" : "Cancel"}
                     </button>
                   </div>
                 </article>
